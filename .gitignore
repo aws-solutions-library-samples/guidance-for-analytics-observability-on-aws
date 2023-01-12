@@ -1,2 +1,7 @@
 *.class
 *.log
+.bsp
+.idea
+spark-observability-listerner/target
+spark-observability-listerner/project/project
+spark-observability-listerner/project/target
