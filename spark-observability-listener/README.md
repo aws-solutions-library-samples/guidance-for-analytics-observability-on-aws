@@ -17,15 +17,21 @@ spark.read.text("<LOCAL_PATH>/spark-observabiity/README.md").count
 
 # Add http appended to log4j2
 
-1. A log4j2 properties file is provided as an example
+1. A log4j2 xml config file is provided as an example
 
 2. Testing the HTTP appender with local docker opensearch instance requires to add the self-signed certificate to the java keystore. 
 Follow this [blog](https://blog.packagecloud.io/solve-unable-to-find-valid-certification-path-to-requested-target/) to do that
-
-2. Changing the `log4j2.properties` file doesn't work. Current bug in Spark 3.3.0? Instead, copy the file in `$SPARK_HOME/conf`
+   
+3. Run the docker stack (opensearch and opensearch dashboard) using
 
 ```
-# Doesn't work
-./bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configuration=<LOCAL_PATH>/spark-observability/log4j2.properties -Dlog4j.debug=true'
+docker compose up
 ```
 
+2. Change the log4j2 configuration with
+
+```
+./bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/log4j2.xml -Dlog4j.debug=true'
+```
+
+4. Open the opensearch dashboard, create an index mapping on `test*` and you should see logs in `discover`
