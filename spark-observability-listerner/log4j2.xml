@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="info" name="customlogs" packages="">
+    <Appenders>
+        <Http name="Http" url="https://localhost:9200/test/_doc/">
+            <JsonLayout properties="true"/>
+            <Property name="Authorization">Basic YWRtaW46YWRtaW4=</Property>
+        </Http>
+        <Async name="Async">
+            <AppenderRef ref="Http"/>
+        </Async>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="Async"/>
+        </Root>
+    </Loggers>
+</Configuration>
