@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="info" name="customlogs" packages="">
+<Configuration status="info" name="customlogs" packages="com.amazonaws.sparkobservability">
     <Appenders>
+        <Custom/>
         <Http name="Http" url="http://localhost:9200/test/_doc/">
             <JsonLayout properties="true"/>
             <Property name="Authorization">Basic YWRtaW46YWRtaW4=</Property>
         </Http>
         <Async name="Async">
             <AppenderRef ref="Http"/>
+            <AppenderRef ref="CustomAppender"/>
         </Async>
     </Appenders>
     <Loggers>
