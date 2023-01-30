@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="info" name="customlogs" packages="">
+<Configuration status="info" name="customlogs" packages="com.amazonaws.sparkobservability">
     <Appenders>
+        <Console name="Console"/>
+        <SparkObs name="Opensearch"/>
         <Http name="Http" url="http://localhost:9200/test/_doc/">
             <JsonLayout properties="true"/>
             <Property name="Authorization">Basic YWRtaW46YWRtaW4=</Property>
         </Http>
         <Async name="Async">
             <AppenderRef ref="Http"/>
+            <AppenderRef ref="Opensearch"/>
+            <AppenderRef ref="Console"/>
         </Async>
     </Appenders>
     <Loggers>
         <Root level="info">
-            <AppenderRef ref="Async"/>
+            <AppenderRef ref="Opensearch"/>
+            <AppenderRef ref="Console"/>
         </Root>
     </Loggers>
 </Configuration>
