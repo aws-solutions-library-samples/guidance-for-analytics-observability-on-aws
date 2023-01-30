@@ -2,6 +2,6 @@
 *.log
 .bsp
 .idea
-spark-observability-listener/target
-spark-observability-listener/project/project
-spark-observability-listener/project/target
+collector/target
+collector/project/project
+collector/project/target
