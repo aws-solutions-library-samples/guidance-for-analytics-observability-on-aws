@@ -8,10 +8,10 @@ from infra.infra_stack import InfraStack
 
 app = cdk.App()
 InfraStack(app, "InfraStack",
-           env=cdk.Environment(
-               region='<REGION>',
-               account='<ACCOUNT_ID>',
-           )
+           # env=cdk.Environment(
+           #     region='us-east-1',
+           #     account='11111111111111',
+           # )
     # If you don't specify 'env', this stack will be environment-agnostic.
     # Account/Region-dependent features and context lookups will not work,
     # but a single synthesized template can be deployed anywhere.

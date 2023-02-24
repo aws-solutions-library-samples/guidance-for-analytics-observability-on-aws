@@ -1,19 +1,15 @@
 from aws_cdk import (
-    Stack, RemovalPolicy, Aws, CfnJson, CfnOutput,
+    Stack, RemovalPolicy, CfnOutput, CfnTag, Fn,
 )
-from aws_cdk.aws_cognito import UserPool, CognitoDomainOptions, CfnUserPoolGroup, AutoVerifiedAttrs, StandardAttributes, \
-    StandardAttribute, CfnIdentityPool, CfnIdentityPoolRoleAttachment
-from aws_cdk.aws_ec2 import Vpc, SubnetType, EbsDeviceVolumeType, SubnetSelection
-from aws_cdk.aws_iam import CfnServiceLinkedRole, Role, ServicePrincipal, ManagedPolicy, FederatedPrincipal, \
-    PolicyStatement, AnyPrincipal
+from aws_cdk.aws_ec2 import Vpc
+from aws_cdk.aws_iam import CfnServiceLinkedRole, AnyPrincipal, ManagedPolicy, PolicyStatement
 from aws_cdk.aws_kms import Key
 from aws_cdk.aws_logs import LogGroup, RetentionDays
-from aws_cdk.aws_opensearchservice import Domain, EngineVersion, CapacityConfig, ZoneAwarenessConfig, \
-    EncryptionAtRestOptions, EbsOptions, CognitoOptions, AdvancedSecurityOptions, LoggingOptions
-from aws_cdk.custom_resources import AwsCustomResource, AwsCustomResourcePolicy, AwsSdkCall
+from aws_cdk.aws_opensearchservice import CfnDomain
 from constructs import Construct
-from aws_cdk.aws_cognito_identitypool_alpha import IdentityPool, IdentityPoolAuthenticationProviders, \
-    IdentityPoolRoleMapping, IdentityPoolProviderUrl, UserPoolAuthenticationProvider
+
+from infra.cluster_sizing import ClusterConfig
+from infra.security_options import SecurityOptions
 
 
 class InfraStack(Stack):
@@ -21,11 +17,23 @@ class InfraStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        # Parameter for the Opensearch Dashboard authentication
+        self.__auth_mode = SecurityOptions.load_auth_mode(self.node.try_get_context("AuthMode"))
+
+        # Opensearch domain security config and additional resources if required (secret)
+        security_config = SecurityOptions(self, 'DomainSecurityOptions', self.__auth_mode)
+
+        # Parameter for T-shirt sizing the Opensearch domain
+        self.__tshirt_size = ClusterConfig.load_tshirt_size(self.node.try_get_context("TshirtSize"))
+        cluster_sizing = ClusterConfig(self.__tshirt_size)
+
+        # Service Linked role for Amazon Opensearch
         slr = CfnServiceLinkedRole(self, 'ServiceLinkedRole', aws_service_name='es.amazonaws.com')
 
         # Create a default VPC with 3 AZs
         # You need to set the env variables in the app.py to get effectively 3 AZs, otherwise you only get 2
-        # vpc = Vpc(self, 'Vpc', max_azs=3)
+        # TODO: CfnOutput + export value for VPC connectivity
+        vpc = Vpc(self, 'Vpc', max_azs=3)
 
         # KMS key used to encrypt the data at rest in Opensearch
         key = Key(self, 'Key',
@@ -33,150 +41,98 @@ class InfraStack(Stack):
                   removal_policy=RemovalPolicy.DESTROY,
                   )
 
-        # IAM Role assumed Opensearch to interact with Cognito
-        domain_role = Role(self, 'Role',
-                           assumed_by=ServicePrincipal('es.amazonaws.com'),
-                           managed_policies=[ManagedPolicy.from_aws_managed_policy_name('AmazonOpenSearchServiceCognitoAccess')],
-                           )
-
-        # Cognito User pool containing all the users able to interact with Opensearch
-        user_pool = UserPool(self, 'UserPool',
-                             removal_policy=RemovalPolicy.DESTROY,
-                             sign_in_case_sensitive=False,
-                             auto_verify=AutoVerifiedAttrs(email=True),
-                             standard_attributes=StandardAttributes(
-                                 email=StandardAttribute(
-                                     mutable=False,
-                                     required=True,
-                                 )
-                             ))
-
-        # Congito domain for the Opensearch sign-in
-        user_pool.add_domain('CognitoDomain', cognito_domain=CognitoDomainOptions(domain_prefix='spark-observability'))
-
-        # Cognito identity pool. Will contain the mapping between users and roles
-        identity_pool = IdentityPool(self, 'IdentityPool',
-                                     authentication_providers=IdentityPoolAuthenticationProviders(
-                                        user_pools=[UserPoolAuthenticationProvider(user_pool=user_pool)]
-                                     ))
-
-        # Conditions that are commons to thd IAM role used by Cognito users groups (admin or readonly)
-        roles_conditions = {
-            "StringEquals": {
-                "cognito-identity.amazonaws.com:aud": CfnJson(scope=self, id='IdentityRef', value=identity_pool.identity_pool_id)
-            },
-            "ForAnyValue:StringLike": {
-                "cognito-identity.amazonaws.com:amr": "authenticated"
-            }
-        }
-
-        # IAM Role used by Cognito admin users group
-        admin_role = Role(self, 'OpensearchAdminRole',
-                          assumed_by=FederatedPrincipal('cognito-identity.amazonaws.com').with_conditions(roles_conditions)
-                          )
-
-        # IAM Role used by Cognito readonly users group
-        readonly_role = Role(self, 'OpensearchReadonlyRole',
-                          assumed_by=FederatedPrincipal('cognito-identity.amazonaws.com').with_conditions(roles_conditions)
-                          )
-
-        # Cognito admin users group
-        user_pool_group = CfnUserPoolGroup(self, 'AdminPoolGroup',
-                                           user_pool_id=user_pool.user_pool_id,
-                                           group_name='opensearch-admin',
-                                           role_arn=admin_role.role_arn,
-                                           )
-
+        # Log group for the Opensearch domain
         log_group = LogGroup(self, 'OpensearchLogGroup',
                              removal_policy=RemovalPolicy.DESTROY,
                              retention=RetentionDays.ONE_WEEK,
                              log_group_name='spark-observability-logs',
                              )
 
-        domain = Domain(self, 'Domain',
-                        version=EngineVersion.OPENSEARCH_2_3,
-                        removal_policy=RemovalPolicy.DESTROY,
-                        enable_version_upgrade=True,
-                        enforce_https=True,
-                        encryption_at_rest=EncryptionAtRestOptions(
-                            enabled=True,
-                            kms_key=key,
-                        ),
-                        node_to_node_encryption=True,
-                        # vpc=vpc,
-                        # vpc_subnets=[SubnetSelection(
-                        #     subnet_type=SubnetType.PRIVATE_WITH_EGRESS,
-                        #     one_per_az=True,
-                        # )],
-                        zone_awareness=ZoneAwarenessConfig(
-                            availability_zone_count=3
-                        ),
-                        # TODO create T-shirt sizing
-                        capacity=CapacityConfig(
-                            master_nodes=3,
-                            master_node_instance_type='m6g.large.search',
-                            data_nodes=3,
-                            data_node_instance_type='r6gd.large.search',
-                            warm_nodes=2,
-                            warm_instance_type='ultrawarm1.medium.search',
-                        ),
-                        ebs=EbsOptions(
-                            enabled=False,
-                            # volume_type=EbsDeviceVolumeType.GP3,
-                        ),
-                        cognito_dashboards_auth=CognitoOptions(
-                            identity_pool_id=identity_pool.identity_pool_id,
-                            user_pool_id=user_pool.user_pool_id,
-                            role=domain_role,
-                        ),
-                        fine_grained_access_control=AdvancedSecurityOptions(master_user_arn=admin_role.role_arn),
-                        logging=LoggingOptions(
-                            app_log_group=log_group,
-                            app_log_enabled=True,
-                            audit_log_group=log_group,
-                            audit_log_enabled=True,
-                        )
-                        )
+        domain = CfnDomain(self, "MyCfnDomain",
+                           # access_policies=access_policies,
+                           advanced_options={
+                               "rest.action.multi.allow_explicit_index": "false"
+                           },
+                           advanced_security_options=security_config.config,
+                           cluster_config=cluster_sizing.cluster_config,
+                           domain_endpoint_options=CfnDomain.DomainEndpointOptionsProperty(
+                               custom_endpoint_enabled=False,
+                               enforce_https=True,
+                               tls_security_policy="Policy-Min-TLS-1-2-2019-07"
+                           ),
+                           domain_name="spark-observability",
+                           ebs_options=cluster_sizing.ebs_config,
+                           encryption_at_rest_options=CfnDomain.EncryptionAtRestOptionsProperty(
+                               enabled=True,
+                               kms_key_id=key.key_id
+                           ),
+                           engine_version="OpenSearch_2.3",
+                           log_publishing_options={
+                               "INDEX_SLOW_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "SEARCH_SLOW_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "AUDIT_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "ES_APPLICATION_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "TASK_DETAILS_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               )
+                           },
+                           node_to_node_encryption_options=CfnDomain.NodeToNodeEncryptionOptionsProperty(
+                               enabled=True
+                           ),
+                           tags=[CfnTag(
+                               key="spark-observability",
+                               value="true"
+                           )],
+                           )
 
-        domain.grant_read_write(AnyPrincipal())
-
-        admin_policy = ManagedPolicy(self, 'OpensearchAdminPolicy',
-                                     roles=[admin_role],
-                                     statements=[
-                                         PolicyStatement(
-                                             resources=[domain.domain_arn],
-                                             actions=['es:ESHttpPost', 'es:ESHttpGet', 'es:ESHttpPut'],
+        # Policy for the spark job to ingest data
+        collector_policy = ManagedPolicy(self,'CollectorPolicy',
+                                         statements=[
+                                             PolicyStatement(
+                                                 actions=['es:DescribeDomain'],
+                                                 resources=[domain.get_att('Arn').to_string()]
+                                             ),
+                                             PolicyStatement(
+                                                 actions=['es:ESHttp*'],
+                                                 resources=[
+                                                     domain.get_att('Arn').to_string()+'/index*',
+                                                     domain.get_att('Arn').to_string()+'/_template/index*',
+                                                     domain.get_att('Arn').to_string()+'/_plugins/_ism/policies/*'
+                                                 ]
+                                             ),
+                                             PolicyStatement(
+                                                 actions=['es:ESHttpGet'],
+                                                 resources=[
+                                                     domain.get_att('Arn').to_string()+'/_cluster/settings',
+                                                 ]
+                                             ),
+                                         ]
                                          )
-                                     ])
-
-        # user_pool_clients = AwsCustomResource(self, 'ClientIdCr',
-        #                                       policy=AwsCustomResourcePolicy.from_sdk_calls(resources=[user_pool.user_pool_arn]),
-        #                                       on_create=AwsSdkCall(
-        #                                           service='CognitoIdentityServiceProvider',
-        #                                           action='listUserPoolClients',
-        #                                           parameters={
-        #                                               'UserPoolId': user_pool.user_pool_id,
-        #                                           },
-        #                                       ))
-        # user_pool_clients.node.add_dependency(domain)
-        #
-        # CfnIdentityPoolRoleAttachment(self, 'UserPoolRoleAttachment',
-        #                               identity_pool_id=identity_pool.ref,
-        #                               roles={
-        #                                   'authenticated': readonly_role.roleArn,
-        #                               },
-        #                               role_mappings=CfnJson(scope=self, id='RoleMappingJson',
-        #                                                     value={
-        #                                                         f'{user_pool.user_pool_provider_url}'
-        #                                                     })
-        #                               )
-
-        CfnOutput(self, 'CreateUserUrl',
-                  description='URL to create new users. Add the user to admin group',
-                  value="https://" + Aws.REGION + ".console.aws.amazon.com/cognito/users?region=" + Aws.REGION + "#/pool/" + user_pool.user_pool_id + "/users"
-                  )
 
         CfnOutput(self, 'OpensearchDashboardUrl',
                   description='Opensearch Dashboard URL',
-                  value='https://' + domain.domain_endpoint +'/_dashboards'
+                  value=Fn.join('', ['https://', domain.get_att('DomainEndpoint').to_string(), '/_dashboards'])
+                  )
+
+        CfnOutput(self, 'OpensearchAdminPasswordSecretArn',
+                  description='Opensearch admin password secret ARN',
+                  value=security_config.secret.secret_arn
+                  )
+
+        CfnOutput(self, 'CollectorPolicyArn',
+                  description='Collector managed policy ARN',
+                  value=collector_policy.managed_policy_arn
                   )

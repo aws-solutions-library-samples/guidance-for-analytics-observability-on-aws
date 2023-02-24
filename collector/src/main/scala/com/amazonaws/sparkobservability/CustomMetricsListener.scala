@@ -42,7 +42,7 @@ class CustomMetricsListener extends SparkListener {
       }
     }
 
-    return Map(
+    Map(
       "stageId"->stageId,
       "taskId"->taskId,
       "executorId"->executorId,
