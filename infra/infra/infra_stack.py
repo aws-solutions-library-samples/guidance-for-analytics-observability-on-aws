@@ -202,3 +202,13 @@ class InfraStack(Stack):
                   description='Collector managed policy ARN to attach to the role used by the Spark job',
                   value=collector_policy.managed_policy_arn
                   )
+
+        CfnOutput(self, 'OsisRole',
+                  description='Role to use by the Osis pipeline',
+                  value=pipeline_role.role_arn
+                  )
+
+        CfnOutput(self, 'OsisPipelineName',
+                  description='Name to use for the Osis pipeline',
+                  value='spark-observability'
+                  )
