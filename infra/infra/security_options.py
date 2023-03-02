@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Optional
 
+from aws_cdk.aws_iam import IRole, Role, ServicePrincipal, ManagedPolicy
 from aws_cdk.aws_opensearchservice import CfnDomain
 from aws_cdk.aws_secretsmanager import Secret
 from constructs import Construct
@@ -13,18 +14,25 @@ class AuthMode(Enum):
 
 class SecurityOptions(Construct):
 
-    def __init__(self, scope: Construct, construct_id: str, auth_mode: AuthMode, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, auth_mode: AuthMode,
+                 **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        # master role for Opensearch domain
+        # assumed by lambda because we are using a customer resource to configure the cluster via Opensearch API
+        self._master_role = Role(self, 'MasterOpensearchRole',
+                                 assumed_by=ServicePrincipal('lambda.amazonaws.com'),
+                                 managed_policies=[ManagedPolicy.from_aws_managed_policy_name('service-role/AWSLambdaBasicExecutionRole')]
+                                 )
+
         if auth_mode == AuthMode.BASIC_AUTH:
-            self._secret = Secret(self, 'OpensearchDomainAdminSecret')
+            # self._secret = Secret(self, 'OpensearchDomainAdminSecret')
 
             self._config = CfnDomain.AdvancedSecurityOptionsInputProperty(
                 enabled=True,
                 internal_user_database_enabled=True,
                 master_user_options=CfnDomain.MasterUserOptionsProperty(
-                    master_user_name="admin",
-                    master_user_password=self._secret.secret_value.unsafe_unwrap()
+                    master_user_arn=self._master_role.role_arn,
                 )
             )
         else:
@@ -32,7 +40,7 @@ class SecurityOptions(Construct):
                 enabled=True,
                 internal_user_database_enabled=False,
                 saml_options=CfnDomain.SAMLOptionsProperty(
-                    enabled=False,
+                    enabled=True,
                     idp=CfnDomain.IdpProperty(
                         entity_id="entityId",
                         metadata_content="metadataContent"
@@ -60,5 +68,5 @@ class SecurityOptions(Construct):
         return self._config
 
     @property
-    def secret(self):
-        return self._secret
+    def master_role(self):
+        return self._master_role
