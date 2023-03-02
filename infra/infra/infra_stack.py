@@ -1,0 +1,214 @@
+import subprocess
+import json
+
+from aws_cdk import (
+    Stack, RemovalPolicy, CfnOutput, CfnTag, Fn, Duration, CustomResource,
+)
+from aws_cdk.aws_ec2 import Vpc
+from aws_cdk.aws_secretsmanager import Secret, SecretStringGenerator
+from aws_cdk.aws_iam import CfnServiceLinkedRole, AnyPrincipal, ManagedPolicy, PolicyStatement, ServicePrincipal, Role
+from aws_cdk.aws_kms import Key
+from aws_cdk.aws_lambda import LayerVersion, Code, Runtime, Function
+from aws_cdk.aws_logs import LogGroup, RetentionDays
+from aws_cdk.aws_opensearchservice import CfnDomain
+from aws_cdk.custom_resources import Provider
+from constructs import Construct
+
+from infra.cluster_sizing import ClusterConfig
+from infra.security_options import SecurityOptions
+from pathlib import Path
+
+
+class InfraStack(Stack):
+
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+
+        # Stack, needed to get region and account ID
+        stack = Stack.of(self)
+
+        # Parameter for the Opensearch Dashboard authentication
+        self.__auth_mode = SecurityOptions.load_auth_mode(self.node.try_get_context("AuthMode"))
+        # Opensearch domain security config and additional resources if required (secret)
+        security_config = SecurityOptions(self, 'DomainSecurityOptions', self.__auth_mode)
+
+        # Parameter for T-shirt sizing the Opensearch domain
+        self.__tshirt_size = ClusterConfig.load_tshirt_size(self.node.try_get_context("TshirtSize"))
+        cluster_sizing = ClusterConfig(self.__tshirt_size)
+
+        # Service Linked role for Amazon Opensearch
+        slr = CfnServiceLinkedRole(self, 'ServiceLinkedRole', aws_service_name='es.amazonaws.com')
+
+        # Create a default VPC with 3 AZs
+        # You need to set the env variables in the app.py to get effectively 3 AZs, otherwise you only get 2
+        # TODO: CfnOutput + export value for VPC connectivity
+        vpc = Vpc(self, 'Vpc', max_azs=3)
+
+        # KMS key used to encrypt the data at rest in Opensearch
+        key = Key(self, 'Key',
+                  enable_key_rotation=True,
+                  removal_policy=RemovalPolicy.DESTROY,
+                  )
+
+        # Log group for the Opensearch domain
+        log_group = LogGroup(self, 'OpensearchLogGroup',
+                             removal_policy=RemovalPolicy.DESTROY,
+                             retention=RetentionDays.ONE_WEEK,
+                             log_group_name='spark-observability-logs',
+                             )
+        log_group.grant_write(ServicePrincipal("es.amazonaws.com"))
+
+        domain = CfnDomain(self, "MyCfnDomain",
+                           access_policies={
+                               "Version": "2012-10-17",
+                               "Statement": [
+                                   {
+                                       "Effect": "Allow",
+                                       "Principal": {
+                                           "AWS": "*"
+                                       },
+                                       "Action": "es:*",
+                                       "Resource": f"arn:aws:es:{stack.region}:{stack.account}:domain/spark-observability/*"
+                                   }
+                               ]
+                           },
+                           advanced_security_options=security_config.config,
+                           cluster_config=cluster_sizing.cluster_config,
+                           domain_endpoint_options=CfnDomain.DomainEndpointOptionsProperty(
+                               custom_endpoint_enabled=False,
+                               enforce_https=True,
+                               tls_security_policy="Policy-Min-TLS-1-2-2019-07"
+                           ),
+                           domain_name="spark-observability",
+                           ebs_options=cluster_sizing.ebs_config,
+                           encryption_at_rest_options=CfnDomain.EncryptionAtRestOptionsProperty(
+                               enabled=True,
+                               kms_key_id=key.key_id
+                           ),
+                           engine_version="OpenSearch_2.3",
+                           log_publishing_options={
+                               "INDEX_SLOW_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "SEARCH_SLOW_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "AUDIT_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "ES_APPLICATION_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               ),
+                               "TASK_DETAILS_LOGS": CfnDomain.LogPublishingOptionProperty(
+                                   cloud_watch_logs_log_group_arn=log_group.log_group_arn,
+                                   enabled=True
+                               )
+                           },
+                           node_to_node_encryption_options=CfnDomain.NodeToNodeEncryptionOptionsProperty(
+                               enabled=True
+                           ),
+                           tags=[CfnTag(
+                               key="spark-observability",
+                               value="true"
+                           )],
+                           )
+
+        # The role used by the Opensearch Ingestion pipeline
+        pipeline_role = Role(self, 'PipelineRole',
+                             assumed_by=ServicePrincipal('osis.amazonaws.com'))
+
+        # the policy attached to the OS ingestion pipeline
+        pipeline_policy = ManagedPolicy(self, 'PipelinePolicy',
+                                        statements=[
+                                            PolicyStatement(
+                                                resources=[domain.get_att('Arn').to_string()],
+                                                actions=["es:DescribeDomain"]
+                                            ),
+                                            PolicyStatement(
+                                                resources=[domain.get_att('Arn').to_string() + '/*'],
+                                                actions=["es:ESHttp*"]
+                                            ),
+                                        ],
+                                        roles=[pipeline_role]
+                                        )
+
+        # Opensearch dashboard user secret
+        dashboard_secret = Secret(self, 'DashboardSecret',
+                                  generate_secret_string=SecretStringGenerator(
+                                      secret_string_template=json.dumps({'username': 'user'}),
+                                      generate_string_key='password',
+                                      exclude_characters='"@\\/'
+                                  ))
+
+        dashboard_secret.grant_read(security_config.master_role)
+
+        # Build the lambda layer assets
+        subprocess.call(
+            ['pip', 'install', '-t',
+             Path(__file__).parent.joinpath('./resources/lambda/layer/python/lib/python3.9/site-packages'), '-r',
+             Path(__file__).parent.joinpath('./resources/lambda/opensearch-bootstrap/requirements.txt'), '--upgrade'])
+
+        requirements_layer = LayerVersion(scope=self,
+                                          id='PythonRequirementsTemplate',
+                                          code=Code.from_asset(
+                                              str(Path(__file__).parent.joinpath('resources/lambda/layer'))),
+                                          compatible_runtimes=[Runtime.PYTHON_3_9])
+
+        bootstrap_lambda = Function(scope=self,
+                                    id='OsBootstrapFunction',
+                                    runtime=Runtime.PYTHON_3_9,
+                                    code=Code.from_asset(
+                                        str(Path(__file__).parent.joinpath('resources/lambda/opensearch-bootstrap'))),
+                                    handler='bootstrap.on_event',
+                                    environment={'PIPELINE_ROLE_ARN': pipeline_role.role_arn,
+                                                 'DOMAIN': domain.get_att('DomainEndpoint').to_string(),
+                                                 'USER_SECRET_ARN': dashboard_secret.secret_arn,
+                                                 },
+                                    layers=[requirements_layer],
+                                    timeout=Duration.minutes(15),
+                                    role=security_config.master_role
+                                    )
+
+        bootstrap_lambda_provider = Provider(scope=self,
+                                             id='BootstrapLambdaProvider',
+                                             on_event_handler=bootstrap_lambda
+                                             )
+        os_bootstrap = CustomResource(scope=self,
+                       id='ExecuteOsBootstrap',
+                       service_token=bootstrap_lambda_provider.service_token,
+                       properties={'Timeout': 900}
+                       )
+
+        # Policy for the ingestor component
+        collector_policy = ManagedPolicy(self, 'CollectorPolicy',
+                                         statements=[
+                                             PolicyStatement(
+                                                 actions=['osis:Ingest'],
+                                                 resources=[
+                                                     f'arn:aws:osis:{stack.region}:{stack.account}:pipeline/spark-observability']
+                                             ),
+                                         ])
+
+        CfnOutput(self, 'OpensearchDashboardUrl',
+                  description='Opensearch Dashboard URL',
+                  value=Fn.join('', ['https://', domain.get_att('DomainEndpoint').to_string(), '/_dashboards'])
+                  )
+
+        CfnOutput(self, 'CollectorPolicyArn',
+                  description='Collector managed policy ARN to attach to the role used by the Spark job',
+                  value=collector_policy.managed_policy_arn
+                  )
+
+        CfnOutput(self, 'OsisRole',
+                  description='Role to use by the Osis pipeline',
+                  value=pipeline_role.role_arn
+                  )
+
+        CfnOutput(self, 'OsisPipelineName',
+                  description='Name to use for the Osis pipeline',
+                  value='spark-observability'
+                  )

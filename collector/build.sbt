@@ -8,7 +8,7 @@ libraryDependencies ++= {
   Seq(
     "org.apache.spark" %% "spark-core" % "3.3.0" % "provided",
     "org.opensearch.client" % "opensearch-rest-high-level-client" % "2.5.0",
-    "org.apache.logging.log4j" % "log4j-core" % "2.17.2"
+    "org.apache.logging.log4j" % "log4j-core" % "2.17.2" % "provided"
   )
 }
 
