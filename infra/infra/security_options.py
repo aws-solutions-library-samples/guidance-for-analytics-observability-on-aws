@@ -30,7 +30,7 @@ class SecurityOptions(Construct):
 
             self._config = CfnDomain.AdvancedSecurityOptionsInputProperty(
                 enabled=True,
-                internal_user_database_enabled=True,
+                internal_user_database_enabled=False,
                 master_user_options=CfnDomain.MasterUserOptionsProperty(
                     master_user_arn=self._master_role.role_arn,
                 )
