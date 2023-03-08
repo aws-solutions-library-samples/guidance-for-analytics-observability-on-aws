@@ -12,7 +12,7 @@ sbt assembly
 
 3. Execute a simple spark command to see the output of the custom listener
 ```
-spark.read.text("<LOCAL_PATH>/spark-observabiity/README.md").count
+spark.read.text("<LOCAL_PATH>/spark-observabiity/collector/README.md").count
 ```
 
 # Add http appended to log4j2
