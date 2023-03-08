@@ -6,7 +6,8 @@ from aws_cdk import (
 )
 from aws_cdk.aws_ec2 import Vpc
 from aws_cdk.aws_secretsmanager import Secret, SecretStringGenerator
-from aws_cdk.aws_iam import CfnServiceLinkedRole, AnyPrincipal, ManagedPolicy, PolicyStatement, ServicePrincipal, Role
+from aws_cdk.aws_iam import CfnServiceLinkedRole, AnyPrincipal, ManagedPolicy, PolicyStatement, ServicePrincipal, Role, \
+    Effect
 from aws_cdk.aws_kms import Key
 from aws_cdk.aws_lambda import LayerVersion, Code, Runtime, Function
 from aws_cdk.aws_logs import LogGroup, RetentionDays
@@ -15,7 +16,6 @@ from aws_cdk.custom_resources import Provider
 from constructs import Construct
 
 from infra.cluster_sizing import ClusterConfig
-from infra.security_options import SecurityOptions
 from pathlib import Path
 
 
@@ -27,10 +27,41 @@ class InfraStack(Stack):
         # Stack, needed to get region and account ID
         stack = Stack.of(self)
 
-        # Parameter for the Opensearch Dashboard authentication
-        self.__auth_mode = SecurityOptions.load_auth_mode(self.node.try_get_context("AuthMode"))
-        # Opensearch domain security config and additional resources if required (secret)
-        security_config = SecurityOptions(self, 'DomainSecurityOptions', self.__auth_mode)
+        # master role for Opensearch domain
+        # assumed by lambda because we are using a customer resource to configure the cluster via Opensearch API
+        master_role = Role(self, 'MasterOpensearchRole',
+                           assumed_by=ServicePrincipal('lambda.amazonaws.com'),
+                           managed_policies=[
+                               ManagedPolicy.from_aws_managed_policy_name(
+                                   'service-role/AWSLambdaBasicExecutionRole')
+                           ])
+
+        # add permission to update the cluster after creation. required to enable FGAC with internal database users
+        master_role.add_to_policy(
+            PolicyStatement(
+                actions=['es:UpdateElasticsearchDomainConfig'],
+                resources=['*'],
+            ))
+
+        # Opensearch dashboard user secret
+        user_secret = Secret(self, 'UserSecret',
+                             generate_secret_string=SecretStringGenerator(
+                                 secret_string_template=json.dumps({'username': 'user'}),
+                                 generate_string_key='password',
+                                 exclude_characters='"@\\/'
+                             ))
+
+        user_secret.grant_read(master_role)
+
+        # Opensearch dashboard admin secret
+        admin_secret = Secret(self, 'AdminSecret',
+                              generate_secret_string=SecretStringGenerator(
+                                  secret_string_template=json.dumps({'username': 'admin'}),
+                                  generate_string_key='password',
+                                  exclude_characters='"@\\/'
+                              ))
+
+        admin_secret.grant_read(master_role)
 
         # Parameter for T-shirt sizing the Opensearch domain
         self.__tshirt_size = ClusterConfig.load_tshirt_size(self.node.try_get_context("TshirtSize"))
@@ -49,6 +80,11 @@ class InfraStack(Stack):
                   enable_key_rotation=True,
                   removal_policy=RemovalPolicy.DESTROY,
                   )
+
+        master_role.add_to_policy(PolicyStatement(
+            resources=[key.key_arn],
+            actions=['kms:DescribeKey'],
+        ))
 
         # Log group for the Opensearch domain
         log_group = LogGroup(self, 'OpensearchLogGroup',
@@ -72,7 +108,13 @@ class InfraStack(Stack):
                                    }
                                ]
                            },
-                           advanced_security_options=security_config.config,
+                           advanced_security_options=CfnDomain.AdvancedSecurityOptionsInputProperty(
+                               enabled=True,
+                               internal_user_database_enabled=False,
+                               master_user_options=CfnDomain.MasterUserOptionsProperty(
+                                   master_user_arn=master_role.role_arn,
+                               )
+                           ),
                            cluster_config=cluster_sizing.cluster_config,
                            domain_endpoint_options=CfnDomain.DomainEndpointOptionsProperty(
                                custom_endpoint_enabled=False,
@@ -136,16 +178,6 @@ class InfraStack(Stack):
                                         roles=[pipeline_role]
                                         )
 
-        # Opensearch dashboard user secret
-        dashboard_secret = Secret(self, 'DashboardSecret',
-                                  generate_secret_string=SecretStringGenerator(
-                                      secret_string_template=json.dumps({'username': 'user'}),
-                                      generate_string_key='password',
-                                      exclude_characters='"@\\/'
-                                  ))
-
-        dashboard_secret.grant_read(security_config.master_role)
-
         # Build the lambda layer assets
         subprocess.call(
             ['pip', 'install', '-t',
@@ -165,12 +197,14 @@ class InfraStack(Stack):
                                         str(Path(__file__).parent.joinpath('resources/lambda/opensearch-bootstrap'))),
                                     handler='bootstrap.on_event',
                                     environment={'PIPELINE_ROLE_ARN': pipeline_role.role_arn,
-                                                 'DOMAIN': domain.get_att('DomainEndpoint').to_string(),
-                                                 'USER_SECRET_ARN': dashboard_secret.secret_arn,
+                                                 'DOMAIN_ENDPOINT': domain.get_att('DomainEndpoint').to_string(),
+                                                 'DOMAIN_NAME': 'spark-observability',
+                                                 'USER_SECRET_ARN': user_secret.secret_arn,
+                                                 'ADMIN_SECRET_ARN': admin_secret.secret_arn,
                                                  },
                                     layers=[requirements_layer],
                                     timeout=Duration.minutes(15),
-                                    role=security_config.master_role
+                                    role=master_role
                                     )
 
         bootstrap_lambda_provider = Provider(scope=self,
@@ -178,10 +212,10 @@ class InfraStack(Stack):
                                              on_event_handler=bootstrap_lambda
                                              )
         os_bootstrap = CustomResource(scope=self,
-                       id='ExecuteOsBootstrap',
-                       service_token=bootstrap_lambda_provider.service_token,
-                       properties={'Timeout': 900}
-                       )
+                                      id='ExecuteOsBootstrap',
+                                      service_token=bootstrap_lambda_provider.service_token,
+                                      properties={'Timeout': 900}
+                                      )
 
         # Policy for the ingestor component
         collector_policy = ManagedPolicy(self, 'CollectorPolicy',
@@ -211,4 +245,9 @@ class InfraStack(Stack):
         CfnOutput(self, 'OsisPipelineName',
                   description='Name to use for the Osis pipeline',
                   value='spark-observability'
+                  )
+
+        CfnOutput(self, 'OsisPipelineIndex',
+                  description='Index to use in the Osis pipeline sink definition',
+                  value='spark'
                   )

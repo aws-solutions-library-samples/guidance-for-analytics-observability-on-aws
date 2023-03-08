@@ -28,7 +28,7 @@ case class CustomTaskMetrics(
                             shuffleBytesWritten: Double
                             ) extends CustomMetrics
 
-case class StageCustomMetrics(
+case class CustomStageMetrics(
                              appName: String,
                              appId: String,
                              jobId: String,

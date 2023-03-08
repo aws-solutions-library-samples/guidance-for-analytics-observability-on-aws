@@ -1,5 +1,6 @@
 package com.amazonaws.sparkobservability
 
+import com.google.gson.Gson
 import org.apache.http.HttpHost
 import org.apache.http.conn.ssl.{NoopHostnameVerifier, TrustAllStrategy}
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder
@@ -11,6 +12,8 @@ import org.opensearch.client.{RequestOptions, RestClient, RestClientBuilder, Res
 import java.util
 
 object ObservabilityClient {
+
+  private lazy val gson = new Gson()
 
   lazy val opensearchClient: RestHighLevelClient = {
     val builder = RestClient.builder(new HttpHost("localhost", 9200, "http"))
@@ -28,11 +31,20 @@ object ObservabilityClient {
   }
 
   def send(event: LogEvent): Unit = {
-    val request = new IndexRequest("obs")
+    val request = new IndexRequest("spark-logs")
     val requestContent = new util.HashMap[String, String](){
-      put("message: ", event.toString)
+      put("message", event.getMessage.toString)
+      put("logger", event.getLoggerFqcn)
+      put("level", event.getLevel.toString)
     }
     request.source(requestContent)
+    opensearchClient.index(request, RequestOptions.DEFAULT)
+  }
+
+  def send(metrics: CustomMetrics): Unit = {
+    val payload = gson.toJson(metrics)
+    val request = new IndexRequest("spark-metrics")
+    request.source(payload)
     opensearchClient.index(request, RequestOptions.DEFAULT)
   }
 }

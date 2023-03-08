@@ -19,6 +19,7 @@ class CustomMetricsListener extends SparkListener {
 
   override def onTaskEnd(taskEnded: SparkListenerTaskEnd){
     val metrics = collectTaskCustomMetrics(taskEnded)
+    ObservabilityClient.send(metrics)
     logger.info(s"Metrics collected: ${metrics}")
   }
 
