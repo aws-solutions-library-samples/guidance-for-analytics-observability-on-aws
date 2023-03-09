@@ -18,28 +18,8 @@ import scala.util.Try
 @Plugin(name = "SparkObs", category = "Core", elementType = "appender", printObject = true)
 class CollectorAppender(name: String) extends AbstractAppender(name, null, null, false, null) {
 
-  val opensearchClient: RestHighLevelClient = {
-    val builder = RestClient.builder(new HttpHost("localhost", 9200, "http"))
-      .setHttpClientConfigCallback(
-        new RestClientBuilder.HttpClientConfigCallback() {
-          @Override
-          override def customizeHttpClient(httpClientBuilder: HttpAsyncClientBuilder): HttpAsyncClientBuilder = {
-            httpClientBuilder
-              .setSSLContext(new SSLContextBuilder().loadTrustMaterial(null, TrustAllStrategy.INSTANCE).build())
-              .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
-          }
-        }
-      )
-    new RestHighLevelClient(builder)
-  }
-
   override def append(event: LogEvent): Unit = {
-    val request = new IndexRequest("obs")
-    val requestContent = new util.HashMap[String, String](){
-      put("message: ", event.toString)
-    }
-    request.source(requestContent)
-    opensearchClient.index(request, RequestOptions.DEFAULT)
+    ObservabilityClient.send(event)
   }
 }
 

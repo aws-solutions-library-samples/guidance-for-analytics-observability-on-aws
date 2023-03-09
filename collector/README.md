@@ -2,12 +2,12 @@
 
 1. Package the JAR
 ```
-sbt package
+sbt assembly
 ```
 
 2. Run spark-shell loading the custom listener
 ```
-./bin/spark-shell --conf spark.extraListeners=com.amazonaws.sparkobservabilitylistener.CustomMetricsListener --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-listener_2.12-0.1.jar
+./bin/spark-shell --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
 ```
 
 3. Execute a simple spark command to see the output of the custom listener
@@ -31,7 +31,7 @@ docker compose up
 2. Change the log4j2 configuration with
 
 ```
-./bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/spark-observability-listener/log4j2.xml -Dlog4j.debug=true'
+./bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/collector/log4j2.xml -Dlog4j.debug=true'
 ```
 
 4. Open the opensearch dashboard, create an index mapping on `test*` and you should see logs in `discover`
@@ -45,7 +45,7 @@ sbt package
 
 2. Run spark-shell loading the plugin
 ```
-./bin/spark-shell --conf spark.plugins=com.amazonaws.sparkobservability.CustomLogsPlugin --driver-class-path <LOCAL_PATH>/spark-observability/spark-observability-listener/target/scala-2.12/custom-spark-listener_2.12-0.0.1.jar
+./bin/spark-shell --conf spark.plugins=com.amazonaws.sparkobservability.CustomLogsPlugin --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
 ```
 
 
@@ -53,5 +53,10 @@ sbt package
 
 
 ```
-./bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/spark-observability-listener/log4j2.xml -Dlog4j.debug=true' --driver-class-path <LOCAL_PATH>/spark-observability/spark-observability-listener/target/scala-2.12/custom-spark-listener_2.12-0.0.1.jar
+<SPARK_HOME>/bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/collector/log4j2.xml -Dlog4j.debug=true' --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar 
+```
+
+Run Spark code
+```
+ spark.read.text("./collector/README.md").count
 ```
