@@ -1,15 +1,18 @@
 package com.amazonaws.sparkobservability
 
-trait CustomMetrics {
-  val appName: String
-  val appId: String
-  val jobId: String
+import scala.collection.JavaConverters._
+
+sealed abstract class CustomMetrics(val appName: String, val appId: String, val jobId: String) extends Product {
+
+  def toMap() = {
+    this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.asJava
+  }
 }
 
 case class CustomTaskMetrics(
-                            appName: String,
-                            appId: String,
-                            jobId: String,
+                            override val appName: String,
+                            override val appId: String,
+                            override val jobId: String,
                             stageId: Integer,
                             stageAttemptId: Integer,
                             taskId: String,
@@ -26,13 +29,13 @@ case class CustomTaskMetrics(
                             shuffleBytesRead: Double,
                             shuffleRecordsWritten: Double,
                             shuffleBytesWritten: Double
-                            ) extends CustomMetrics
+                            ) extends CustomMetrics(appName, appId, jobId)
 
 case class CustomStageMetrics(
-                             appName: String,
-                             appId: String,
-                             jobId: String,
+                             override val appName: String,
+                             override val appId: String,
+                             override val jobId: String,
                              stageId: Integer,
                              attemptId: String,
                              numTasks: Integer
-                            ) extends CustomMetrics
+                            ) extends CustomMetrics(appName, appId, jobId)

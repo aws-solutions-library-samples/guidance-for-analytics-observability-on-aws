@@ -8,8 +8,6 @@ libraryDependencies ++= {
   Seq(
     "org.apache.spark" %% "spark-core" % "3.3.0" % "provided",
     "org.opensearch.client" % "opensearch-rest-high-level-client" % "2.5.0",
-    //"org.slf4j" % "slf4j-api" % "2.0.6",
-    "com.google.code.gson" % "gson" % "2.10.1",
     "org.apache.logging.log4j" % "log4j-core" % "2.17.2" % "provided"
   )
 }
