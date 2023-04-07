@@ -1,0 +1,8 @@
+dev-pipeline:
+  source:
+    http:
+  sink:
+    - opensearch:
+        hosts: ["http://opensearch-node1:9200"]
+        index: spark-observability
+        insecure: true
