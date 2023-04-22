@@ -1,0 +1,15 @@
+version: "2"
+pipeline:
+  source:
+    http:
+  processor:
+    - date:
+        from_time_received: true
+        destination: "@timestamp"
+  sink:
+    - opensearch:
+        hosts: [ "https://<DOMAIN_ENDPOINT>" ]
+        index: "spark"
+        aws_sts_role_arn: "<INGESTION_ROLE_ARN>"
+        aws_region: "us-west-2"
+        aws_sigv4: true

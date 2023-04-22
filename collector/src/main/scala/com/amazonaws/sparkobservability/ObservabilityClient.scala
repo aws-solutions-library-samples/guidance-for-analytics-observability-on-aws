@@ -16,6 +16,8 @@ import java.util.HashMap
 import scala.util.control.Exception
 import com.google.gson.Gson
 
+import scala.util.Try
+
 object ObservabilityClient {
 
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
@@ -28,25 +30,33 @@ object ObservabilityClient {
     .signingName("localhost")
     .signingRegion(Region.US_WEST_2)
     .build()
+  private val target = URI.create("http://localhost:2021/log/ingest")
 
   def sendContent(content: String): Unit = {
+    logger.info("content sent: " + content)
+
     val request = SdkHttpFullRequest.builder
-      .contentStreamProvider(RequestBody.fromString("[" + content + "]").contentStreamProvider())
+      .contentStreamProvider(RequestBody.fromString("[" + content + "]").contentStreamProvider)
       .method(SdkHttpMethod.POST)
       .putHeader("Content-Length", Integer.toString(content.length()+2))
       .putHeader("Content-Type", "application/json")
       .protocol("https")
-      .uri(URI.create("http://localhost:2021/log/ingest"))
+      .uri(target)
+      .encodedPath(target.getPath)
       .build
+
+    logger.info("request built :" + Try(request.contentStreamProvider.get.toString).getOrElse("NO DATA"))
 
     val signedRequest = signer.sign(request, params)
+    logger.info("singed request: " + Try(signedRequest.contentStreamProvider.get.toString).getOrElse("NO DATA"))
     val executeRequest = HttpExecuteRequest.builder
       .request(signedRequest)
+      .contentStreamProvider(Try(signedRequest.contentStreamProvider.get).getOrElse(null))
       .build
 
-    logger.info("request sent to data prepper " + executeRequest.contentStreamProvider.get.toString)
+    logger.info("request sent to data prepper :" + Try(executeRequest.contentStreamProvider.get.toString).getOrElse("NO DATA"))
     val response = client.prepareRequest(executeRequest).call
-    logger.info("data prepper response :" + response.httpResponse.statusText())
+    logger.info("data prepper response :" + Try(response.httpResponse.statusText()).getOrElse("NO RESPONSE"))
     logger.info("data prepper response :" + response.httpResponse.statusCode)
     if (response.httpResponse.statusCode != 200) throw new Exception("error sending to data prepper")
   }
