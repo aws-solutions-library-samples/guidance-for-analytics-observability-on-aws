@@ -1,5 +1,8 @@
 # Test the custom spark listener
 
+The custom spark listener is used to collect metrics from the Spark driver. 
+The custom listener is using the observability client to send data to OSI.
+
 1. Package the JAR
 ```
 sbt assembly
@@ -7,7 +10,11 @@ sbt assembly
 
 2. Run spark-shell loading the custom listener
 ```
-./bin/spark-shell --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
+./bin/spark-shell 
+    --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener
+    --conf spark.aws.region=<REGION>
+    --conf spark.observability.endpoint=<OPENSEARCH_PIPELINE_ENDPOINT>
+    --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
 ```
 
 3. Execute a simple spark command to see the output of the custom listener
@@ -15,28 +22,9 @@ sbt assembly
 spark.read.text("<LOCAL_PATH>/spark-observabiity/collector/README.md").count
 ```
 
-# Add http appended to log4j2
-
-1. A log4j2 xml config file is provided as an example
-
-2. Testing the HTTP appender with local docker opensearch instance requires to add the self-signed certificate to the java keystore. 
-Follow this [blog](https://blog.packagecloud.io/solve-unable-to-find-valid-certification-path-to-requested-target/) to do that
-   
-3. Run the docker stack (opensearch and opensearch dashboard) using
-
-```
-docker compose up
-```
-
-2. Change the log4j2 configuration with
-
-```
-./bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/collector/log4j2.xml -Dlog4j.debug=true'
-```
-
-4. Open the opensearch dashboard, create an index mapping on `test*` and you should see logs in `discover`
-
 # Test the Spark plugin
+
+The Spark plugin is useful to execute arbitrary code when the Spark driver or executors are initialized. **We don't use the Spark plugin for now.**
 
 1. Package the JAR
 ```
@@ -51,6 +39,7 @@ sbt package
 
 # Test the custom appender
 
+The custom appender is used to send logs to the observability client. It natively integrates with log4j.
 
 ```
 <SPARK_HOME>/bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/collector/log4j2.xml -Dlog4j.debug=true' --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar 

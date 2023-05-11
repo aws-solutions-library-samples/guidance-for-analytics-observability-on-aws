@@ -37,5 +37,18 @@ services:
       - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
     networks:
       - opensearch-net
+  data-prepper:
+    image: opensearchproject/data-prepper:latest
+    container_name: data-prepper
+    ports:
+      - 4900:4900
+      - 2021:2021
+    expose:
+      - "4900"
+      - "2021"
+    volumes:
+      - ${PWD}/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
+    networks:
+      - opensearch-net
 networks:
   opensearch-net:

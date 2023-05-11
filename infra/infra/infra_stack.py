@@ -161,18 +161,34 @@ class InfraStack(Stack):
 
         # The role used by the Opensearch Ingestion pipeline
         pipeline_role = Role(self, 'PipelineRole',
-                             assumed_by=ServicePrincipal('osis.amazonaws.com'))
+                             assumed_by=ServicePrincipal('osis-pipelines.amazonaws.com'))
 
         # the policy attached to the OS ingestion pipeline
         pipeline_policy = ManagedPolicy(self, 'PipelinePolicy',
                                         statements=[
                                             PolicyStatement(
-                                                resources=[domain.get_att('Arn').to_string()],
-                                                actions=["es:DescribeDomain"]
+                                                resources=[f"arn:aws:es:*:{stack.account}:domain/*"],
+                                                actions=["es:DescribeDomain"],
+                                                conditions={
+                                                    "StringEquals": {
+                                                        "aws:SourceAccount": stack.account
+                                                    },
+                                                    "ArnLike": {
+                                                        "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
+                                                    }
+                                                }
                                             ),
                                             PolicyStatement(
                                                 resources=[domain.get_att('Arn').to_string() + '/*'],
-                                                actions=["es:ESHttp*"]
+                                                actions=["es:ESHttp*"],
+                                                conditions={
+                                                    "StringEquals": {
+                                                        "aws:SourceAccount": stack.account
+                                                    },
+                                                    "ArnLike": {
+                                                        "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
+                                                    }
+                                                }
                                             ),
                                         ],
                                         roles=[pipeline_role]

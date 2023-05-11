@@ -15,7 +15,6 @@
     </Appenders>
     <Loggers>
         <Root level="info">
-            <AppenderRef ref="Opensearch"/>
             <AppenderRef ref="Console"/>
         </Root>
     </Loggers>

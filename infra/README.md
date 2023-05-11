@@ -1,7 +1,5 @@
 
-# Welcome to your CDK Python project!
-
-This is a blank project for CDK development with Python.
+# CDK application for the infrastructure used by the AWS Analytics Observability
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
@@ -37,22 +35,26 @@ Once the virtualenv is activated, you can install the required dependencies.
 $ pip install -r requirements.txt
 ```
 
-At this point you can now synthesize the CloudFormation template for this code.
+At this point you can now synthesize or deploy the CloudFormation template for this code.
 
 ```
-$ cdk synth
+$ cdk synth -c TshirtSize=xs
+$ cdk deploy -c TshirtSize=xs
 ```
 
 To add additional dependencies, for example other CDK libraries, just add
 them to your `setup.py` file and rerun the `pip install -r requirements.txt`
 command.
 
-## Useful commands
 
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
+## Create the ingestion pipeline
 
-Enjoy!
+Use the `pipeline.yaml` file to configure an ingestion pipeline in OSI console. 
+Change the parameters to point to your infrastructure
+
+## TODO
+
+Add domain monitoring and indices permissions to avoid this issue
+```
+{"error":{"root_cause":[{"type":"security_exception","reason":"no permissions for [cluster:monitor/health] and User [name=arn:aws:iam::099713751195:role/gromav, backend_roles=[arn:aws:iam::099713751195:role/gromav], requestedTenant=null]"}],"type":"security_exception","reason":"no permissions for [cluster:monitor/health] and User [name=arn:aws:iam::099713751195:role/gromav, backend_roles=[arn:aws:iam::099713751195:role/gromav], requestedTenant=null]"},"status":403}
+```
