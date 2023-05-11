@@ -51,3 +51,10 @@ command.
 
 Use the `pipeline.yaml` file to configure an ingestion pipeline in OSI console. 
 Change the parameters to point to your infrastructure
+
+## TODO
+
+Add domain monitoring and indices permissions to avoid this issue
+```
+{"error":{"root_cause":[{"type":"security_exception","reason":"no permissions for [cluster:monitor/health] and User [name=arn:aws:iam::099713751195:role/gromav, backend_roles=[arn:aws:iam::099713751195:role/gromav], requestedTenant=null]"}],"type":"security_exception","reason":"no permissions for [cluster:monitor/health] and User [name=arn:aws:iam::099713751195:role/gromav, backend_roles=[arn:aws:iam::099713751195:role/gromav], requestedTenant=null]"},"status":403}
+```

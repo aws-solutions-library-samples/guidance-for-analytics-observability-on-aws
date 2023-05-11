@@ -2,6 +2,7 @@ version: "2"
 pipeline:
   source:
     http:
+      path: "/ingest"
   processor:
     - date:
         from_time_received: true
@@ -10,6 +11,6 @@ pipeline:
     - opensearch:
         hosts: [ "https://<DOMAIN_ENDPOINT>" ]
         index: "spark"
-        aws_sts_role_arn: "<INGESTION_ROLE_ARN>"
-        aws_region: "us-west-2"
-        aws_sigv4: true
+        aws:
+          sts_role_arn: "<INGESTION_ROLE_ARN>"
+          region: "<AWS_REGION>"

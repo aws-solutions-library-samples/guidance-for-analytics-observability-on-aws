@@ -21,4 +21,12 @@ object Utils {
   def getAppId(): String = {
     Try(SparkEnv.get.conf.getAppId).getOrElse("APP ID NOT DEFINED")
   }
+
+  def getObservabilityEndpoint(): String = {
+    Try(SparkEnv.get.conf.get("spark.observability.endpoint")).getOrElse("OBSERVABILITY ENDPOINT NOT DEFINED")
+  }
+
+  def getAwsRegion(): String = {
+    Try(SparkEnv.get.conf.get("spark.aws.region")).getOrElse("AWS REGION NOT DEFINED")
+  }
 }
