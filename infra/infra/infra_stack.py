@@ -8,6 +8,7 @@ from aws_cdk.aws_ec2 import Vpc
 from aws_cdk.aws_secretsmanager import Secret, SecretStringGenerator
 from aws_cdk.aws_iam import CfnServiceLinkedRole, AnyPrincipal, ManagedPolicy, PolicyStatement, ServicePrincipal, Role, \
     Effect
+from aws_cdk.aws_osis import CfnPipeline
 from aws_cdk.aws_kms import Key
 from aws_cdk.aws_lambda import LayerVersion, Code, Runtime, Function
 from aws_cdk.aws_logs import LogGroup, RetentionDays
@@ -167,28 +168,28 @@ class InfraStack(Stack):
         pipeline_policy = ManagedPolicy(self, 'PipelinePolicy',
                                         statements=[
                                             PolicyStatement(
-                                                resources=[f"arn:aws:es:*:{stack.account}:domain/*"],
+                                                resources=[domain.get_att('Arn').to_string()],
                                                 actions=["es:DescribeDomain"],
-                                                conditions={
-                                                    "StringEquals": {
-                                                        "aws:SourceAccount": stack.account
-                                                    },
-                                                    "ArnLike": {
-                                                        "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
-                                                    }
-                                                }
+                                                # conditions={
+                                                #     "StringEquals": {
+                                                #         "aws:SourceAccount": stack.account
+                                                #     },
+                                                #     "ArnLike": {
+                                                #         "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
+                                                #     }
+                                                # }
                                             ),
                                             PolicyStatement(
                                                 resources=[domain.get_att('Arn').to_string() + '/*'],
                                                 actions=["es:ESHttp*"],
-                                                conditions={
-                                                    "StringEquals": {
-                                                        "aws:SourceAccount": stack.account
-                                                    },
-                                                    "ArnLike": {
-                                                        "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
-                                                    }
-                                                }
+                                                # conditions={
+                                                #     "StringEquals": {
+                                                #         "aws:SourceAccount": stack.account
+                                                #     },
+                                                #     "ArnLike": {
+                                                #         "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
+                                                #     }
+                                                # }
                                             ),
                                         ],
                                         roles=[pipeline_role]
@@ -239,9 +240,69 @@ class InfraStack(Stack):
                                              PolicyStatement(
                                                  actions=['osis:Ingest'],
                                                  resources=[
-                                                     f'arn:aws:osis:{stack.region}:{stack.account}:pipeline/spark-observability']
+                                                     f'arn:aws:osis:{stack.region}:{stack.account}:pipeline/spark-obs-logs',
+                                                     f'arn:aws:osis:{stack.region}:{stack.account}:pipeline/spark-obs-metrics'
+                                                 ]
                                              ),
                                          ])
+
+        # OSI pipeline for logs
+        log_pipeline = CfnPipeline(self, 'LogsPipeline',
+                                   max_units=10,
+                                   min_units=1,
+                                   pipeline_configuration_body='''
+                                version: "2"
+                                pipeline:
+                                  source:
+                                    http:
+                                      path: "/ingest"
+                                  processor:
+                                    - date:
+                                        from_time_received: true
+                                        destination: "@timestamp"
+                                  sink:
+                                    - opensearch:
+                                        hosts: [ "https://{domain_url}" ]
+                                        index: "spark-logs"
+                                        aws_sts_role_arn: "{role_arn}"
+                                        aws_region: "{region}"
+                                        aws_sigv4: true
+                               '''.format(
+                                       domain_url=domain.get_att('DomainEndpoint').to_string(),
+                                       role_arn=pipeline_role.role_arn,
+                                       region=stack.region
+                                   ),
+                                   pipeline_name="spark-obs-logs",
+                                   )
+
+        # OSI pipeline for metrics
+        metrics_pipeline = CfnPipeline(self, 'MetricsPipeline',
+                                       max_units=4,
+                                       min_units=1,
+                                       pipeline_configuration_body='''
+                                            version: "2"
+                                            pipeline:
+                                              source:
+                                                http:
+                                                  path: "/ingest"
+                                              processor:
+                                                - date:
+                                                    from_time_received: true
+                                                    destination: "@timestamp"
+                                              sink:
+                                                - opensearch:
+                                                    hosts: [ "https://{domain_url}" ]
+                                                    index: "spark-metrics"
+                                                    aws_sts_role_arn: "{role_arn}"
+                                                    aws_region: "{region}"
+                                                    aws_sigv4: true
+                                           '''.format(
+                                           domain_url=domain.get_att('DomainEndpoint').to_string(),
+                                           role_arn=pipeline_role.role_arn,
+                                           region=stack.region
+                                       ),
+                                       pipeline_name="spark-obs-metrics",
+                                       )
 
         CfnOutput(self, 'OpensearchDashboardUrl',
                   description='Opensearch Dashboard URL',
@@ -258,12 +319,7 @@ class InfraStack(Stack):
                   value=pipeline_role.role_arn
                   )
 
-        CfnOutput(self, 'OsisPipelineName',
-                  description='Name to use for the Osis pipeline',
-                  value='spark-observability'
-                  )
-
         CfnOutput(self, 'OsisPipelineIndex',
-                  description='Index to use in the Osis pipeline sink definition',
-                  value='spark'
+                  description='Indexes used in Opensearch',
+                  value='spark-logs, park-metrics'
                   )

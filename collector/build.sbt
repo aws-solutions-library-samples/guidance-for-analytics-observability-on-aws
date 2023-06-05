@@ -12,7 +12,8 @@ libraryDependencies ++= {
     "software.amazon.awssdk" % "regions" % "2.20.38",
     "software.amazon.awssdk" % "apache-client" % "2.20.38",
     "software.amazon.awssdk" % "auth" % "2.20.38",
-    "com.google.code.gson" % "gson" % "2.10.1"
+    "com.google.code.gson" % "gson" % "2.10.1",
+    "com.lmax" % "disruptor" % "3.3.4"
   )
 }
 

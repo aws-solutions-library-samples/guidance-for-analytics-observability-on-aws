@@ -2,20 +2,12 @@
 <Configuration status="info" name="customlogs" packages="com.amazonaws.sparkobservability">
     <Appenders>
         <Console name="Console"/>
-        <SparkObs name="Opensearch"/>
-        <Http name="Http" url="http://localhost:9200/test/_doc/">
-            <JsonLayout properties="true"/>
-            <Property name="Authorization">Basic YWRtaW46YWRtaW4=</Property>
-        </Http>
-        <Async name="Async">
-            <AppenderRef ref="Http"/>
-            <AppenderRef ref="Opensearch"/>
-            <AppenderRef ref="Console"/>
-        </Async>
+        <SparkObs name="Opensearch" endpoint="<OPENSEARCH_PIPELINE_ENDPOINT>" region="<OPENSEARCH_PIPELINE_REGION>" immediateFlush="false"/>
     </Appenders>
     <Loggers>
         <Root level="info">
             <AppenderRef ref="Console"/>
+            <AppenderRef ref="Opensearch"/>
         </Root>
     </Loggers>
 </Configuration>
