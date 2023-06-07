@@ -49,7 +49,7 @@ command.
 
 ## Create the ingestion pipeline
 
-Use the `pipeline.yaml` file to configure an ingestion pipeline in OSI console. 
+Use the `pipeline.yaml` file to configure an ingestion pipeline in Opensearch service console. 
 Change the parameters to point to your infrastructure
 
 ## TODO

@@ -3,11 +3,10 @@ package com.amazonaws.sparkobservability
 import org.apache.spark.scheduler.{SparkListener, SparkListenerJobStart, SparkListenerStageCompleted, SparkListenerTaskEnd}
 import org.slf4j.LoggerFactory
 
-import scala.collection.mutable.Map
-
 class CustomMetricsListener extends SparkListener {
 
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
+  private val client = new ObservabilityClient(Utils.getObservabilityEndpoint(), Utils.getAwsRegion())
 
   override def onJobStart(jobStart: SparkListenerJobStart) {
     logger.info(s"Job started with ${jobStart.stageInfos.size} stages: $jobStart")
@@ -19,7 +18,7 @@ class CustomMetricsListener extends SparkListener {
 
   override def onTaskEnd(taskEnded: SparkListenerTaskEnd){
     val metrics = collectTaskCustomMetrics(taskEnded)
-    ObservabilityClient.send(metrics)
+    client.send(metrics)
     logger.info(s"Metrics collected: ${metrics}")
   }
 

@@ -23,10 +23,10 @@ object Utils {
   }
 
   def getObservabilityEndpoint(): String = {
-    Try(SparkEnv.get.conf.get("spark.observability.endpoint")).getOrElse("OBSERVABILITY ENDPOINT NOT DEFINED")
+    Try(SparkEnv.get.conf.get("spark.metrics.endpoint")).getOrElse("OBSERVABILITY ENDPOINT NOT DEFINED")
   }
 
   def getAwsRegion(): String = {
-    Try(SparkEnv.get.conf.get("spark.aws.region")).getOrElse("AWS REGION NOT DEFINED")
+    Try(SparkEnv.get.conf.get("spark.metrics.region")).getOrElse("AWS REGION NOT DEFINED")
   }
 }
