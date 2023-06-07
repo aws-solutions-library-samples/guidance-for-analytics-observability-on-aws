@@ -2,7 +2,7 @@ import subprocess
 import json
 
 from aws_cdk import (
-    Stack, RemovalPolicy, CfnOutput, CfnTag, Fn, Duration, CustomResource,
+    Stack, RemovalPolicy, CfnOutput, CfnTag, Fn, Duration, CustomResource, Aws,
 )
 from aws_cdk.aws_ec2 import Vpc
 from aws_cdk.aws_secretsmanager import Secret, SecretStringGenerator
@@ -69,7 +69,10 @@ class InfraStack(Stack):
         cluster_sizing = ClusterConfig(self.__tshirt_size)
 
         # Service Linked role for Amazon Opensearch
-        slr = CfnServiceLinkedRole(self, 'ServiceLinkedRole', aws_service_name='es.amazonaws.com')
+        try:
+            slr = Role.from_role_name(self, 'OpensearchSlr', 'AWSServiceRoleForAmazonOpenSearchService')
+        except:
+            slr = CfnServiceLinkedRole(self, 'ServiceLinkedRole', aws_service_name='es.amazonaws.com')
 
         # Create a default VPC with 3 AZs
         # You need to set the env variables in the app.py to get effectively 3 AZs, otherwise you only get 2
@@ -95,7 +98,7 @@ class InfraStack(Stack):
                              )
         log_group.grant_write(ServicePrincipal("es.amazonaws.com"))
 
-        domain = CfnDomain(self, "MyCfnDomain",
+        domain = CfnDomain(self, "SparkObservabilityDomain",
                            access_policies={
                                "Version": "2012-10-17",
                                "Statement": [
@@ -168,7 +171,7 @@ class InfraStack(Stack):
         pipeline_policy = ManagedPolicy(self, 'PipelinePolicy',
                                         statements=[
                                             PolicyStatement(
-                                                resources=[domain.get_att('Arn').to_string()],
+                                                resources=[f"arn:aws:es:*:{stack.account}:domain/*"],
                                                 actions=["es:DescribeDomain"],
                                                 # conditions={
                                                 #     "StringEquals": {
@@ -247,27 +250,27 @@ class InfraStack(Stack):
                                          ])
 
         # OSI pipeline for logs
-        log_pipeline = CfnPipeline(self, 'LogsPipeline',
+        logs_pipeline = CfnPipeline(self, 'LogsPipeline',
                                    max_units=10,
                                    min_units=1,
                                    pipeline_configuration_body='''
-                                version: "2"
-                                pipeline:
-                                  source:
-                                    http:
-                                      path: "/ingest"
-                                  processor:
-                                    - date:
-                                        from_time_received: true
-                                        destination: "@timestamp"
-                                  sink:
-                                    - opensearch:
-                                        hosts: [ "https://{domain_url}" ]
-                                        index: "spark-logs"
-                                        aws_sts_role_arn: "{role_arn}"
-                                        aws_region: "{region}"
-                                        aws_sigv4: true
-                               '''.format(
+                                      version: "2"
+                                      pipeline:
+                                          source:
+                                            http:
+                                              path: "/ingest"
+                                          processor:
+                                            - date:
+                                                from_time_received: true
+                                                destination: "@timestamp"
+                                          sink:
+                                            - opensearch:
+                                                hosts: [ "https://{domain_url}" ]
+                                                index: "spark-logs"
+                                                aws_sts_role_arn: "{role_arn}"
+                                                aws_region: "{region}"
+                                                aws_sigv4: true
+                                   '''.format(
                                        domain_url=domain.get_att('DomainEndpoint').to_string(),
                                        role_arn=pipeline_role.role_arn,
                                        region=stack.region
@@ -311,7 +314,7 @@ class InfraStack(Stack):
 
         CfnOutput(self, 'CollectorPolicyArn',
                   description='Collector managed policy ARN to attach to the role used by the Spark job',
-                  value=collector_policy.managed_policy_arn
+                  value=collector_policy.managed_policy_arn,
                   )
 
         CfnOutput(self, 'OsisRole',
@@ -321,5 +324,20 @@ class InfraStack(Stack):
 
         CfnOutput(self, 'OsisPipelineIndex',
                   description='Indexes used in Opensearch',
-                  value='spark-logs, park-metrics'
+                  value='spark-logs, spark-metrics'
+                  )
+
+        # TODO replace ARn with endpoint URL when bug corrected
+        CfnOutput(self, 'MetricsPipelineUrl',
+                  description='Pipeline endpoint for metrics',
+                  # value=Fn.join('', ['https://', metrics_pipeline.get_att('IngestionUrls').to_string(), '/ingest']),
+                  value=metrics_pipeline.get_att('PipelineArn').to_string(),
+                  export_name='metrics-endpoint'
+                  )
+
+        CfnOutput(self, 'LogsPipelineUrl',
+                  description='Pipeline endpoint for logs',
+                  # value=Fn.join('', ['https://', logs_pipeline.get_att('IngestionUrls').to_string(), '/ingest']),
+                  value=logs_pipeline.get_att('PipelineArn').to_string(),
+                  export_name='logs-endpoint'
                   )

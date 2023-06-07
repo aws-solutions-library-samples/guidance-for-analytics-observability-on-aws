@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="info" name="customlogs" packages="com.amazonaws.sparkobservability">
+    <Appenders>
+        <Console name="Console"/>
+        <SparkObs name="Opensearch" endpoint="<OPENSEARCH_PIPELINE_ENDPOINT>" region="<OPENSEARCH_PIPELINE_REGION>" immediateFlush="false"/>
+    </Appenders>
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="Opensearch"/>
+        </Root>
+    </Loggers>
+</Configuration>
