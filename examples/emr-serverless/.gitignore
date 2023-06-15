@@ -8,3 +8,4 @@ __pycache__
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+docker/spark-observability-collector-assembly-0.0.1.jar

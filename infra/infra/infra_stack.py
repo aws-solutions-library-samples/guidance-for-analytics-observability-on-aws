@@ -330,14 +330,12 @@ class InfraStack(Stack):
         # TODO replace ARn with endpoint URL when bug corrected
         CfnOutput(self, 'MetricsPipelineUrl',
                   description='Pipeline endpoint for metrics',
-                  # value=Fn.join('', ['https://', metrics_pipeline.get_att('IngestionUrls').to_string(), '/ingest']),
-                  value=metrics_pipeline.get_att('PipelineArn').to_string(),
+                  value=Fn.select(0, metrics_pipeline.attr_ingest_endpoint_urls),
                   export_name='metrics-endpoint'
                   )
 
         CfnOutput(self, 'LogsPipelineUrl',
                   description='Pipeline endpoint for logs',
-                  # value=Fn.join('', ['https://', logs_pipeline.get_att('IngestionUrls').to_string(), '/ingest']),
-                  value=logs_pipeline.get_att('PipelineArn').to_string(),
+                  value=Fn.select(0, logs_pipeline.attr_ingest_endpoint_urls),
                   export_name='logs-endpoint'
                   )
