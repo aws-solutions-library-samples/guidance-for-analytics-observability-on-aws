@@ -49,11 +49,12 @@ class EmrServerlessStack(Stack):
         destination_bucket.grant_read_write(emr_role)
 
         # The jar file containing the Spark Observability tooling
-        jar_file = s3_deploy.BucketDeployment(self, 'SparkObservabilityJarFile',
-                                              sources=[s3_deploy.Source.asset(join(dirname(dirname(dirname(dirname(__file__)))), "collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar"))],
-                                              destination_bucket=destination_bucket,
-                                              extract=False
-                                              )
+        # Removed the jar file deployed on S3 because it's already in the docker image
+        # jar_file = s3_deploy.BucketDeployment(self, 'SparkObservabilityJarFile',
+        #                                       sources=[s3_deploy.Source.asset(join(dirname(dirname(dirname(dirname(__file__)))), "collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar"))],
+        #                                       destination_bucket=destination_bucket,
+        #                                       extract=False
+        #                                       )
 
         emr_custom_repo_name = 'emr-6.9-observability'
         # Create the ECR repository (required to grant emr-serverless with resource based policy)
@@ -64,7 +65,7 @@ class EmrServerlessStack(Stack):
 
         # EMR custom image with log4j2.properties file
         emr_custom_image = ecr_assets.DockerImageAsset(self, 'EmrCustomImage',
-                                                       directory=dirname(dirname(__file__))
+                                                       directory=join(dirname(dirname(__file__)), 'docker')
                                                        )
         emr_image_deployment = ecr_deploy.ECRDeployment(self, 'EmrCustomImageDeploy',
                                                       src=ecr_deploy.DockerImageName(emr_custom_image.image_uri),
@@ -101,10 +102,14 @@ class EmrServerlessStack(Stack):
                                                 disk="16000gb"
                                             ))
 
+        emr_serverless.node.add_dependency(emr_image_deployment)
+
         # Get the OSIS pipeline from CDK parameters or context
         metrics_ingestion_url = self.node.try_get_context('metrics_ingestion_url')
 
         # StepFunctions task to trigger the EMR serverless application with entrypoint and dependencies archive
+        # Removed the jar file deployed on S3 because it's already in the docker image
+        # --conf spark.jars=s3://{jar_file.deployed_bucket.bucket_name}/{Fn.select(0,jar_file.object_keys)}
         emr_start_job_task = tasks.CallAwsService(self, 'EmrStartJobTask',
                                                   service='emrserverless',
                                                   action='startJobRun',
@@ -128,7 +133,7 @@ class EmrServerlessStack(Stack):
                                                           "SparkSubmit": {
                                                               "EntryPoint": "s3://aws-bigdata-blog/artifacts/oss-spark-benchmarking/spark-benchmark-assembly-3.3.0.jar",
                                                               "EntryPointArguments": ["s3://blogpost-sparkoneks-us-east-1/blog/BLOG_TPCDS-TEST-3T-partitioned", f"s3://{destination_bucket.bucket_name}/EMRSERVERLESS_TPCDS-TEST-3T-RESULT","/opt/tpcds-kit/tools","parquet","3000","1","false",'q1-v2.4\,q10-v2.4\,q11-v2.4\,q12-v2.4\,q13-v2.4\,q14a-v2.4\,q14b-v2.4\,q15-v2.4\,q16-v2.4\,q17-v2.4\,q18-v2.4\,q19-v2.4\,q2-v2.4\,q20-v2.4\,q21-v2.4\,q22-v2.4\,q23a-v2.4\,q23b-v2.4\,q24a-v2.4\,q24b-v2.4\,q25-v2.4\,q26-v2.4\,q27-v2.4\,q28-v2.4\,q29-v2.4\,q3-v2.4\,q30-v2.4\,q31-v2.4\,q32-v2.4\,q33-v2.4\,q34-v2.4\,q35-v2.4\,q36-v2.4\,q37-v2.4\,q38-v2.4\,q39a-v2.4\,q39b-v2.4\,q4-v2.4\,q40-v2.4\,q41-v2.4\,q42-v2.4\,q43-v2.4\,q44-v2.4\,q45-v2.4\,q46-v2.4\,q47-v2.4\,q48-v2.4\,q49-v2.4\,q5-v2.4\,q50-v2.4\,q51-v2.4\,q52-v2.4\,q53-v2.4\,q54-v2.4\,q55-v2.4\,q56-v2.4\,q57-v2.4\,q58-v2.4\,q59-v2.4\,q6-v2.4\,q60-v2.4\,q61-v2.4\,q62-v2.4\,q63-v2.4\,q64-v2.4\,q65-v2.4\,q66-v2.4\,q67-v2.4\,q68-v2.4\,q69-v2.4\,q7-v2.4\,q70-v2.4\,q71-v2.4\,q72-v2.4\,q73-v2.4\,q74-v2.4\,q75-v2.4\,q76-v2.4\,q77-v2.4\,q78-v2.4\,q79-v2.4\,q8-v2.4\,q80-v2.4\,q81-v2.4\,q82-v2.4\,q83-v2.4\,q84-v2.4\,q85-v2.4\,q86-v2.4\,q87-v2.4\,q88-v2.4\,q89-v2.4\,q9-v2.4\,q90-v2.4\,q91-v2.4\,q92-v2.4\,q93-v2.4\,q94-v2.4\,q95-v2.4\,q96-v2.4\,q97-v2.4\,q98-v2.4\,q99-v2.4\,ss_max-v2.4',"true"],
-                                                              "SparkSubmitParameters": f"--conf spark.driver.extraJavaOptions=-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener --conf spark.metrics.region={stack.region} --conf spark.metrics.endpoint=https://{metrics_ingestion_url}/ingest --conf spark.jars=s3://{jar_file.deployed_bucket.bucket_name}/{Fn.select(0,jar_file.object_keys)} --class com.amazonaws.eks.tpcds.BenchmarkSQL"
+                                                              "SparkSubmitParameters": f"--conf spark.driver.extraJavaOptions=-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener --conf spark.metrics.region={stack.region} --conf spark.metrics.endpoint=https://{metrics_ingestion_url}/ingest --class com.amazonaws.eks.tpcds.BenchmarkSQL"
                                                           },
                                                       }
                                                   },
@@ -187,21 +192,15 @@ class EmrServerlessStack(Stack):
                 ],
                 principals=[
                     iam.ServicePrincipal('emr-serverless.amazonaws.com')
-                ],
-                conditions={
-                    "StringEquals": {
-                        "aws:SourceArn": f"arn:aws:emr-serverless:{stack.region}:{stack.account}:/applications/{emr_serverless.attr_application_id}"
-                    }
-                }
+                ]
             )
         )
 
         # Grant the StepFunctions role to assume the EMR serverless role
         emr_role.grant_pass_role(emr_pipeline)
 
-        # If we deploy in Prod environment we need to create a cron trigger, otherwise the job is started from CDK Pipeline because we need it quickly
         emr_pipeline_trigger = events.Rule(self, "EmrPipelineTrigger",
-                                           schedule=events.Schedule.rate(Duration.minutes(120)),
+                                           schedule=events.Schedule.rate(Duration.minutes(1440)),
                                            targets=[targets.SfnStateMachine(emr_pipeline)]
                                            )
 
