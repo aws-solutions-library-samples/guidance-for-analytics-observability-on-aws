@@ -22,6 +22,7 @@ class CustomMetricsListener extends SparkListener {
 
   override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
     logger.info(s"Stage ${stageCompleted.stageInfo.stageId} completed with ${stageCompleted.stageInfo.numTasks} tasks.")
+    stageToJobMapping.remove(stageCompleted.stageInfo.stageId)
   }
 
   override def onTaskEnd(taskEnded: SparkListenerTaskEnd){
