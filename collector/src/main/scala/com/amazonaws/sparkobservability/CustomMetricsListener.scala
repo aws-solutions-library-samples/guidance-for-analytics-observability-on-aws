@@ -2,22 +2,33 @@ package com.amazonaws.sparkobservability
 
 import org.apache.spark.scheduler.{SparkListener, SparkListenerJobStart, SparkListenerStageCompleted, SparkListenerTaskEnd}
 import org.slf4j.LoggerFactory
+import scala.collection.mutable.HashMap
+
+import java.util
 
 class CustomMetricsListener extends SparkListener {
 
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
   private val client = new ObservabilityClient(Utils.getObservabilityEndpoint(), Utils.getAwsRegion())
+  private val stageToJobMapping = HashMap.empty[Int, String]
 
   override def onJobStart(jobStart: SparkListenerJobStart) {
     logger.info(s"Job started with ${jobStart.stageInfos.size} stages: $jobStart")
+    // Map each stageId to the jobId
+    for (stageId <- jobStart.stageIds) {
+      stageToJobMapping += (stageId -> jobStart.jobId.toString)
+    }
   }
 
   override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
     logger.info(s"Stage ${stageCompleted.stageInfo.stageId} completed with ${stageCompleted.stageInfo.numTasks} tasks.")
+    stageToJobMapping.remove(stageCompleted.stageInfo.stageId)
   }
 
   override def onTaskEnd(taskEnded: SparkListenerTaskEnd){
+
     val metrics = collectTaskCustomMetrics(taskEnded)
+
     client.send(metrics)
     logger.info(s"Metrics collected: ${metrics}")
   }
@@ -27,8 +38,7 @@ class CustomMetricsListener extends SparkListener {
     CustomTaskMetrics(
       appName = Utils.getAppName(),
       appId = Utils.getAppId(),
-      //TODO find a way to collect the jobID
-      jobId = "1",
+      jobId = stageToJobMapping(taskEnded.stageId),
       stageId = taskEnded.stageId,
       stageAttemptId = taskEnded.stageAttemptId,
       taskId = taskEnded.taskInfo.id,
