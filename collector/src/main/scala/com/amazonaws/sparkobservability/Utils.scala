@@ -11,7 +11,7 @@ object Utils {
    * @return The AppName or "APP NAME NOT DEFINED"
    */
   def getAppName(): String = {
-    Try(SparkEnv.get.conf.get("spark.app.name")).getOrElse("APP ID NOT DEFINED")
+    Try(SparkEnv.get.conf.get("spark.app.name")).getOrElse("APP NAME NOT DEFINED")
   }
 
   /**
@@ -28,5 +28,9 @@ object Utils {
 
   def getAwsRegion(): String = {
     Try(SparkEnv.get.conf.get("spark.metrics.region")).getOrElse("AWS REGION NOT DEFINED")
+  }
+
+  def getBatchSize(): Int = {
+    Try(SparkEnv.get.conf.get("spark.metrics.batchSize")).getOrElse("10").toInt
   }
 }
