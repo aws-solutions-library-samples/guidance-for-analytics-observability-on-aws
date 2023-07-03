@@ -2,7 +2,7 @@
 <Configuration status="info" name="customlogs" packages="com.amazonaws.sparkobservability">
     <Appenders>
         <Console name="Console"/>
-        <SparkObs name="Opensearch" endpoint="<OPENSEARCH_PIPELINE_ENDPOINT>" region="<OPENSEARCH_PIPELINE_REGION>" batchSize="<BATCH_SIZE>s" immediateFlush="false"/>
+        <SparkObs name="Opensearch" endpoint="<OPENSEARCH_PIPELINE_ENDPOINT>" region="<OPENSEARCH_PIPELINE_REGION>" batchSize="<BATCH_SIZE>s" timeThreshold="<TIME_THRESHOLD_SIZE>s" immediateFlush="false"/>
     </Appenders>
     <Loggers>
         <Root level="info">

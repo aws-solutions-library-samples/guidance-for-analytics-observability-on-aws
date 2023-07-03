@@ -1,7 +1,13 @@
 package com.amazonaws.sparkobservability
 
-import com.google.gson.Gson
+import com.google.gson.{Gson, JsonElement, JsonParser}
+import org.apache.logging.log4j.ThreadContext
 import org.apache.logging.log4j.core.LogEvent
+import org.apache.logging.log4j.core.impl.Log4jLogEvent
+
+import java.time.Instant
+import org.apache.logging.log4j.message.SimpleMessage
+import org.apache.logging.log4j.util.SortedArrayStringMap
 import org.apache.spark.SparkEnv
 import org.slf4j.LoggerFactory
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
@@ -18,7 +24,8 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
 
-class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int) {
+
+class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, timeThreshold: Int) {
 
   // private lazy val logger = LoggerFactory.getLogger(this.getClass.getName)
   private val credentialsProvider = DefaultCredentialsProvider.create
@@ -35,7 +42,10 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int) {
   // TODO validate it's an HTTPS URL with a path after the URI and fail fast
   private lazy val target = URI.create(endpoint)
   private val buffer = ListBuffer[A]()
+  private val bufferIncomplete = ListBuffer[A]()
   private val gson = new Gson
+  private var lastEventTimestamp: Instant = Instant.now
+
 
   def sendContent(content: String): Unit = {
     // logger.info("content sent: " + content)
@@ -66,10 +76,51 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int) {
     preparedRequest.abort
   }
 
+  private def timeSinceLastEvent(): Int = {
+    val duration = java.time.Duration.between(lastEventTimestamp, Instant.now)
+    duration.getSeconds.toInt
+  }
+
+  private def validateEvent(event: Any): Boolean = {
+    if (event.isInstanceOf[LogEvent]) {
+      val map = event.asInstanceOf[LogEvent].getContextData.toMap
+      if (map.get("appName") == "UNDEFINED" || map.get("appId") == "UNDEFINED" || map.get("executorId") == "UNDEFINED") {
+        return false
+      }
+    }
+    true
+  }
+
   def add(event: A): Unit = {
-    buffer += event
-    if (buffer.size >= batchSize) {
-      val content = buffer.map(gson.toJson(_)).reduceOption((x, y) => x + "," + y)
+    val prevTimeSinceLastEvent = timeSinceLastEvent()
+    if (validateEvent(event)) {
+      buffer += event
+      if (bufferIncomplete.length > 0) {
+        buffer ++= bufferIncomplete.map(e => Utils.enrichLogEvent(e.asInstanceOf[LogEvent], Some(event.asInstanceOf[LogEvent]))).asInstanceOf[ListBuffer[A]]
+        bufferIncomplete.clear()
+      }
+    }
+    else {
+      bufferIncomplete += event
+      return
+    }
+    lastEventTimestamp = Instant.now
+    if  (buffer.size >= batchSize || prevTimeSinceLastEvent >= timeThreshold) {
+      val content = buffer.map { event =>
+        val jsonElement = JsonParser.parseString(gson.toJson(event))
+        val jsonObject = jsonElement.getAsJsonObject
+
+        if (event.isInstanceOf[LogEvent]) {
+
+          if(jsonObject.has("contextData")) {
+            val contextDataMap = event.asInstanceOf[LogEvent].getContextData.toMap
+            jsonObject.remove("contextData")
+            contextDataMap.entrySet().forEach((entry => jsonObject.addProperty(entry.getKey, entry.getValue)))
+          }
+        }
+        jsonObject.toString
+      }.reduceOption((x, y) => x + "," + y)
+
       content match {
         case Some(c) => {
           println("CONTENT!!!!!!!!!!!!!!!!!!!!! " + content.get)

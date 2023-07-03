@@ -9,7 +9,7 @@ import java.util
 class CustomMetricsListener extends SparkListener {
 
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
-  private val client = new ObservabilityClient[CustomMetrics](Utils.getObservabilityEndpoint(), Utils.getAwsRegion(), Utils.getBatchSize())
+  private val client = new ObservabilityClient[CustomMetrics](Utils.getObservabilityEndpoint(), Utils.getAwsRegion(), Utils.getBatchSize(), Utils.getTimeThreshold())
   private val stageToJobMapping = HashMap.empty[Int, String]
 
   override def onJobStart(jobStart: SparkListenerJobStart) {
