@@ -17,11 +17,11 @@ sbt assembly
 ## Use the Spark custom listener to export metrics
 
 2. Run spark-shell loading the custom listener
-```
-./bin/spark-shell 
-    --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener
-    --conf spark.metrics.region=<REGION>
-    --conf spark.metrics.endpoint=<OPENSEARCH_PIPELINE_ENDPOINT>
+```shell
+./bin/spark-shell \
+    --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener \
+    --conf spark.metrics.region=<REGION> \
+    --conf spark.metrics.endpoint=<OPENSEARCH_PIPELINE_ENDPOINT> \
     --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
 ```
 
@@ -35,8 +35,10 @@ spark.read.text("<LOCAL_PATH>/spark-observabiity/collector/README.md").count
 The Spark plugin is useful to execute arbitrary code when the Spark driver or executors are initialized. **We don't use the Spark plugin for now.**
 
 3. Run spark-shell loading the plugin
-```
-./bin/spark-shell --conf spark.plugins=com.amazonaws.sparkobservability.CustomLogsPlugin --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
+```shell
+./bin/spark-shell \
+    --conf spark.plugins=com.amazonaws.sparkobservability.CustomLogsPlugin \
+    --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar
 ```
 
 
@@ -47,13 +49,15 @@ The custom appender is used to send logs to the observability client. It nativel
 1. Configure the `log4j2.xml` or `log4j2.properties` file
 
 2. Run a spark-shell loading the custom appender
-```
-<SPARK_HOME>/bin/spark-shell --conf 'spark.driver.extraJavaOptions=-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/collector/log4j2.xml -Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector' --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar 
+```shell
+./bin/spark-shell \
+    --conf spark.driver.extraJavaOptions='-Dlog4j.configurationFile=<LOCAL_PATH>/spark-observability/collector/log4j2.xml -Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector' \
+    --driver-class-path <LOCAL_PATH>/spark-observability/collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar 
 ```
 3. You can enable log4j2 debugging with `-Dlog4j.debug=true` as a Java option
 
 4. Run Spark code
-```
+```python
  spark.read.text("./collector/README.md").count
 ```
 

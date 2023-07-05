@@ -6,6 +6,18 @@
           "@timestamp" : {
             "type" : "date"
           },
+          "appId" : {
+            "type" : "keyword"
+          },
+          "appName" : {
+            "type" : "text",
+            "fields" : {
+              "keyword" : {
+                "type" : "keyword",
+                "ignore_above" : 256
+              }
+            }
+          },
           "contextData" : {
             "properties" : {
               "immutable" : {
@@ -35,6 +47,9 @@
           },
           "endOfBatch" : {
             "type" : "boolean"
+          },
+          "executorId" : {
+            "type" : "keyword"
           },
           "fqcn" : {
             "type" : "text",

@@ -1,8 +1,34 @@
 dev-pipeline:
   source:
     http:
+      path: "/ingest"
+  processor:
+    - date:
+        from_time_received: true
+        destination: "@timestamp"
+  route:
+    - task-metrics: '/metricsType == "taskMetrics"'
+    - stage-agg-metrics: '/metricsType == "stageAggMetrics"'
   sink:
     - opensearch:
         hosts: ["http://opensearch-node1:9200"]
-        index: spark-observability
+        index: spark-logs
+        insecure: true
+        routes:
+          - logs
+    - opensearch:
+        hosts: ["http://opensearch-node1:9200"]
+        index: spark-task-metrics
+        insecure: true
+        routes:
+          - task-metrics
+    - opensearch:
+        hosts: ["http://opensearch-node1:9200"]
+        index: spark-stage-agg-metrics
+        insecure: true
+        routes:
+          - stage-agg-metrics
+    - opensearch:
+        hosts: [ "http://opensearch-node1:9200" ]
+        index: spark-defaults
         insecure: true

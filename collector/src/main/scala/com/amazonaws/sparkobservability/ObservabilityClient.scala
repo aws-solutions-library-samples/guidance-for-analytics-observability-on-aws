@@ -45,6 +45,7 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
   private val bufferIncomplete = ListBuffer[A]()
   private val gson = new Gson
   private var lastEventTimestamp: Instant = Instant.now
+  private var firstRecord: Boolean = true
 
 
   def sendContent(content: String): Unit = {
@@ -91,6 +92,31 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
     true
   }
 
+  def flushEvents(): Unit = {
+    val content = buffer.map { event =>
+      val jsonElement = JsonParser.parseString(gson.toJson(event))
+      val jsonObject = jsonElement.getAsJsonObject
+
+      if (event.isInstanceOf[LogEvent]) {
+
+        if(jsonObject.has("contextData")) {
+          val contextDataMap = event.asInstanceOf[LogEvent].getContextData.toMap
+          jsonObject.remove("contextData")
+          contextDataMap.entrySet().forEach((entry => jsonObject.addProperty(entry.getKey, entry.getValue)))
+        }
+      }
+      jsonObject.toString
+    }.reduceOption((x, y) => x + "," + y)
+
+    content match {
+      case Some(c) => {
+        sendContent("[" + c + "]")
+        buffer.clear()
+      }
+      case None => println("no record to send...")
+    }
+  }
+
   def add(event: A): Unit = {
     val prevTimeSinceLastEvent = timeSinceLastEvent()
     if (validateEvent(event)) {
@@ -105,30 +131,10 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
       return
     }
     lastEventTimestamp = Instant.now
-    if  (buffer.size >= batchSize || prevTimeSinceLastEvent >= timeThreshold) {
-      val content = buffer.map { event =>
-        val jsonElement = JsonParser.parseString(gson.toJson(event))
-        val jsonObject = jsonElement.getAsJsonObject
-
-        if (event.isInstanceOf[LogEvent]) {
-
-          if(jsonObject.has("contextData")) {
-            val contextDataMap = event.asInstanceOf[LogEvent].getContextData.toMap
-            jsonObject.remove("contextData")
-            contextDataMap.entrySet().forEach((entry => jsonObject.addProperty(entry.getKey, entry.getValue)))
-          }
-        }
-        jsonObject.toString
-      }.reduceOption((x, y) => x + "," + y)
-
-      content match {
-        case Some(c) => {
-          println("CONTENT!!!!!!!!!!!!!!!!!!!!! " + content.get)
-          sendContent("[" + c + "]")
-          buffer.clear()
-        }
-        case None => println("EMPTY BUFFER!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    if  (firstRecord == false) {
+      if ( buffer.size >= batchSize || prevTimeSinceLastEvent >= timeThreshold) {
+        flushEvents()
       }
-    }
+    } else firstRecord = false
   }
 }

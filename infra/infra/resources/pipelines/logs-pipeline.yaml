@@ -1,0 +1,16 @@
+version: "2"
+pipeline:
+  source:
+    http:
+      path: "/ingest"
+  processor:
+    - date:
+        from_time_received: true
+        destination: "@timestamp"
+  sink:
+    - opensearch:
+        hosts: [ "https://{domain_url}" ]
+        index: "spark-logs"
+        aws_sts_role_arn: "{role_arn}"
+        aws_region: "{region}"
+        aws_sigv4: true
