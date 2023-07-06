@@ -173,6 +173,7 @@ class EmrServerlessStack(Stack):
         emr_pipeline_chain = emr_start_job_task.next(wait).next(emr_job_status_task).next(sfn.Choice(self, 'JobSucceededOrFailed')
                                                                                           .when(sfn.Condition.string_equals("$.JobRunState.State", "SUCCESS"), job_succeeded)
                                                                                           .when(sfn.Condition.string_equals("$.JobRunState.State", "FAILED"), job_failed)
+                                                                                          .when(sfn.Condition.string_equals("$.JobRunState.State", "CANCELLED"), job_failed)
                                                                                           .otherwise(wait)
                                                                                           )
 
