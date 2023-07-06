@@ -254,6 +254,7 @@ class InfraStack(Stack):
                                    ),
                                    pipeline_name="spark-obs-logs",
                                    )
+        logs_pipeline.node.dependencies(pipeline_policy)
 
         # OSI pipeline for metrics
         metrics_pipeline = CfnPipeline(self, 'MetricsPipeline',
@@ -268,6 +269,7 @@ class InfraStack(Stack):
                                        ),
                                        pipeline_name="spark-obs-metrics",
                                        )
+        metrics_pipeline.node.add_dependency(pipeline_policy)
 
         CfnOutput(self, 'OpensearchDashboardUrl',
                   description='Opensearch Dashboard URL',
