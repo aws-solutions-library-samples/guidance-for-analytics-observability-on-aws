@@ -1,5 +1,8 @@
 {
-  "spark-stage-agg-metrics" : {
+  "index_patterns": [
+    "spark-stage-agg-metrics*"
+  ],
+  "template": {
     "aliases" : { },
     "mappings" : {
       "properties" : {

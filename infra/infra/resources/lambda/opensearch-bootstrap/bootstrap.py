@@ -29,11 +29,15 @@ session = requests.Session()
 ssm_client = boto3.client('secretsmanager')
 os_client = boto3.client('opensearch')
 
-pipeline_role_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/pipeline_role.json"
-pipeline_role_mapping_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/pipeline_role_mapping.j2"
+pipeline_role_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/pipeline_role.json"
+pipeline_role_mapping_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/pipeline_role_mapping.j2"
 pipeline_iam_role = os.environ['PIPELINE_ROLE_ARN']
-user_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/user.j2"
-admin_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/admin.j2"
+user_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/user.j2"
+admin_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/admin.j2"
+logs_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-logs.json"
+stage_agg_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-stage-agg-metrics.json"
+task_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-task-metrics.json"
+
 
 awsauth = AWS4Auth(credentials.access_key,
                    credentials.secret_key,
@@ -152,6 +156,42 @@ def on_create(event: json):
     if not response.ok:
         raise Exception(f'Error {response.status_code} in read only user creation: {response.text}')
 
+    # create the index template for spark logs
+    logger.info(f'Reading logs index template at {logs_template_path}')
+    with open(logs_template_path) as file_:
+        content = file_.read()
+    payload = json.loads(content)
+    path = "_index_template/spark_logs"
+
+    response = send_to_es('PUT', path, payload)
+
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in logs index template creation: {response.text}')
+
+    # create the index template for spark task metrics
+    logger.info(f'Reading task metrics index template at {task_template_path}')
+    with open(task_template_path) as file_:
+        content = file_.read()
+    payload = json.loads(content)
+    path = "_index_template/spark_task_metrics"
+
+    response = send_to_es('PUT', path, payload)
+
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in task metrics index template creation: {response.text}')
+
+    # create the index template for spark stage agg metrics
+    logger.info(f'Reading stage agg metrics index template at {stage_agg_template_path}')
+    with open(stage_agg_template_path) as file_:
+        content = file_.read()
+    payload = json.loads(content)
+    path = "_index_template/spark_stage_agg_metrics"
+
+    response = send_to_es('PUT', path, payload)
+
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in stage agg metrics index template creation: {response.text}')
+
 
 def on_update(event: json):
     physical_id = event["PhysicalResourceId"]
@@ -166,34 +206,44 @@ def on_delete(event: json):
 
     # delete role for pipeline
     path = '_opendistro/_security/api/roles/pipeline_role'
-
     response = send_to_es('DELETE', path)
-
     if not response.ok:
         raise Exception(f'Error {response.status_code} in deleting the pipeline role: {response.text}')
 
     # delete the role mapping for pipeline
     path = '_opendistro/_security/api/rolesmapping/pipeline_role'
-
     response = send_to_es('DELETE', path)
-
     if not response.ok:
         raise Exception(f'Error {response.status_code} in deleting the pipeline role mapping: {response.text}')
 
     # delete the user for dashboard
     secret = get_secret(user_secret_arn)
     path = f"_plugins/_security/api/internalusers/{secret['username']}"
-
     response = send_to_es('DELETE', path)
-
     if not response.ok:
         raise Exception(f'Error {response.status_code} in deleting the dashboard user: {response.text}')
 
     # delete the admin for dashboard
     secret = get_secret(admin_secret_arn)
     path = f"_plugins/_security/api/internalusers/{secret['username']}"
-
     response = send_to_es('DELETE', path)
-
     if not response.ok:
         raise Exception(f'Error {response.status_code} in deleting the admin user: {response.text}')
+
+    # delete index template for spark logs
+    path = "_index_template/spark_logs"
+    response = send_to_es('DELETE', path)
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in deleting the template for logs: {response.text}')
+
+    # delete index template for spark task metrics
+    path = "_index_template/spark_task_metrics"
+    response = send_to_es('DELETE', path)
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in deleting the template for task metrics: {response.text}')
+
+    # delete index template for spark stage agg metrics
+    path = "_index_template/spark_stage_agg_metrics"
+    response = send_to_es('DELETE', path)
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in deleting the template for stage agg metrics: {response.text}')

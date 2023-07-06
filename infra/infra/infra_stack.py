@@ -173,26 +173,18 @@ class InfraStack(Stack):
                                             PolicyStatement(
                                                 resources=[f"arn:aws:es:*:{stack.account}:domain/*"],
                                                 actions=["es:DescribeDomain"],
-                                                # conditions={
-                                                #     "StringEquals": {
-                                                #         "aws:SourceAccount": stack.account
-                                                #     },
-                                                #     "ArnLike": {
-                                                #         "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
-                                                #     }
-                                                # }
                                             ),
                                             PolicyStatement(
                                                 resources=[domain.get_att('Arn').to_string() + '/*'],
                                                 actions=["es:ESHttp*"],
-                                                # conditions={
-                                                #     "StringEquals": {
-                                                #         "aws:SourceAccount": stack.account
-                                                #     },
-                                                #     "ArnLike": {
-                                                #         "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
-                                                #     }
-                                                # }
+                                                conditions={
+                                                    "StringEquals": {
+                                                        "aws:SourceAccount": stack.account
+                                                    },
+                                                    "ArnLike": {
+                                                        "aws:SourceArn": f"arn:aws:osis:{stack.region}:{stack.account}:pipeline/*"
+                                                    }
+                                                }
                                             ),
                                         ],
                                         roles=[pipeline_role]
@@ -253,24 +245,9 @@ class InfraStack(Stack):
         logs_pipeline = CfnPipeline(self, 'LogsPipeline',
                                    max_units=10,
                                    min_units=1,
-                                   pipeline_configuration_body='''
-                                      version: "2"
-                                      pipeline:
-                                          source:
-                                            http:
-                                              path: "/ingest"
-                                          processor:
-                                            - date:
-                                                from_time_received: true
-                                                destination: "@timestamp"
-                                          sink:
-                                            - opensearch:
-                                                hosts: [ "https://{domain_url}" ]
-                                                index: "spark-logs"
-                                                aws_sts_role_arn: "{role_arn}"
-                                                aws_region: "{region}"
-                                                aws_sigv4: true
-                                   '''.format(
+                                   pipeline_configuration_body=open('./infra/resources/pipelines/logs-pipeline.yaml')
+                                   .read()
+                                   .format(
                                        domain_url=domain.get_att('DomainEndpoint').to_string(),
                                        role_arn=pipeline_role.role_arn,
                                        region=stack.region
@@ -282,24 +259,9 @@ class InfraStack(Stack):
         metrics_pipeline = CfnPipeline(self, 'MetricsPipeline',
                                        max_units=4,
                                        min_units=1,
-                                       pipeline_configuration_body='''
-                                            version: "2"
-                                            pipeline:
-                                              source:
-                                                http:
-                                                  path: "/ingest"
-                                              processor:
-                                                - date:
-                                                    from_time_received: true
-                                                    destination: "@timestamp"
-                                              sink:
-                                                - opensearch:
-                                                    hosts: [ "https://{domain_url}" ]
-                                                    index: "spark-metrics"
-                                                    aws_sts_role_arn: "{role_arn}"
-                                                    aws_region: "{region}"
-                                                    aws_sigv4: true
-                                           '''.format(
+                                       pipeline_configuration_body=open('./infra/resources/pipelines/metrics-pipeline.yaml')
+                                       .read()
+                                       .format(
                                            domain_url=domain.get_att('DomainEndpoint').to_string(),
                                            role_arn=pipeline_role.role_arn,
                                            region=stack.region
@@ -327,7 +289,6 @@ class InfraStack(Stack):
                   value='spark-logs, spark-metrics'
                   )
 
-        # TODO replace ARn with endpoint URL when bug corrected
         CfnOutput(self, 'MetricsPipelineUrl',
                   description='Pipeline endpoint for metrics',
                   value=Fn.select(0, metrics_pipeline.attr_ingest_endpoint_urls),

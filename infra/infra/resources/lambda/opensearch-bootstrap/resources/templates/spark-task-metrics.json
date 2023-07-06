@@ -1,5 +1,8 @@
-  {
-    "spark-task-metrics" : {
+{
+  "index_patterns": [
+    "spark-task-metrics*"
+  ],
+  "template": {
       "aliases" : { },
       "mappings" : {
         "properties" : {
