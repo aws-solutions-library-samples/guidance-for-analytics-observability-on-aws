@@ -78,6 +78,6 @@ object Utils {
   }
 
   def getTimeThreshold(): Int = {
-    Try(SparkEnv.get.conf.get("spark.metrics.timeThreshold")).getOrElse("5").toInt
+    Try(SparkEnv.get.conf.get("spark.metrics.timeThreshold")).getOrElse("10").toInt
   }
 }

@@ -254,7 +254,9 @@ class InfraStack(Stack):
                                    ),
                                    pipeline_name="spark-obs-logs",
                                    )
-        logs_pipeline.node.dependencies(pipeline_policy)
+
+        logs_pipeline.node.add_dependency(pipeline_policy)
+
 
         # OSI pipeline for metrics
         metrics_pipeline = CfnPipeline(self, 'MetricsPipeline',
