@@ -42,11 +42,21 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
   // TODO validate it's an HTTPS URL with a path after the URI and fail fast
   private lazy val target = URI.create(endpoint)
   private val buffer = ListBuffer[A]()
-  private val bufferIncomplete = ListBuffer[A]()
   private val gson = new Gson
   private var lastEventTimestamp: Instant = Instant.now
   private var firstRecord: Boolean = true
+  private val undefinedConst : String = "UNDEFINED"
+  private var appName : String = undefinedConst
+  private var appId : String = undefinedConst
+  private var executorId : String = undefinedConst
 
+
+  def logContextInitialized() : Boolean = {
+    if ((appName != undefinedConst) && (appId != undefinedConst) && (executorId != undefinedConst)) {
+      return true
+    }
+    false
+  }
 
   def sendContent(content: String): Unit = {
     // logger.info("content sent: " + content)
@@ -82,14 +92,12 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
     duration.getSeconds.toInt
   }
 
-  private def validateEvent(event: Any): Boolean = {
-    if (event.isInstanceOf[LogEvent]) {
-      val map = event.asInstanceOf[LogEvent].getContextData.toMap
-      if (map.get("appName") == "UNDEFINED" || map.get("appId") == "UNDEFINED" || map.get("executorId") == "UNDEFINED") {
-        return false
-      }
-    }
-    true
+
+
+  private def initLogContext(): Unit = {
+    this.appName = Utils.getAppName()
+    this.appId = Utils.getAppId()
+    this.executorId = Utils.getExecutorId()
   }
 
   def flushEvents(): Unit = {
@@ -97,20 +105,26 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
       val jsonElement = JsonParser.parseString(gson.toJson(event))
       val jsonObject = jsonElement.getAsJsonObject
 
-      if (event.isInstanceOf[LogEvent]) {
-
-        if(jsonObject.has("contextData")) {
-          val contextDataMap = event.asInstanceOf[LogEvent].getContextData.toMap
-          jsonObject.remove("contextData")
-          contextDataMap.entrySet().forEach((entry => jsonObject.addProperty(entry.getKey, entry.getValue)))
+        if (logContextInitialized()) {
+          jsonObject.addProperty("appName", appName)
+          jsonObject.addProperty("appId", appId)
+          jsonObject.addProperty("executorId", executorId)
         }
-      }
+        else {
+          initLogContext()
+          if (logContextInitialized()) {
+            flushEvents()
+          }
+          return
+        }
+
       jsonObject.toString
     }.reduceOption((x, y) => x + "," + y)
 
     content match {
       case Some(c) => {
-        sendContent("[" + c + "]")
+     //   println("CONTENT!!!!!!!!!!!!!!!!!!!!! " + content.get)
+        sendContent ("[" + c + "]")
         buffer.clear()
       }
       case None => println("no record to send...")
@@ -119,20 +133,11 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
 
   def add(event: A): Unit = {
     val prevTimeSinceLastEvent = timeSinceLastEvent()
-    if (validateEvent(event)) {
-      buffer += event
-      if (bufferIncomplete.length > 0) {
-        buffer ++= bufferIncomplete.map(e => Utils.enrichLogEvent(e.asInstanceOf[LogEvent], Some(event.asInstanceOf[LogEvent]))).asInstanceOf[ListBuffer[A]]
-        bufferIncomplete.clear()
-      }
-    }
-    else {
-      bufferIncomplete += event
-      return
-    }
+    buffer += event
+
     lastEventTimestamp = Instant.now
     if  (firstRecord == false) {
-      if ( buffer.size >= batchSize || prevTimeSinceLastEvent >= timeThreshold) {
+      if (  buffer.size >= batchSize || prevTimeSinceLastEvent >= timeThreshold) {
         flushEvents()
       }
     } else firstRecord = false

@@ -19,7 +19,7 @@ class CollectorAppender(name: String, endpoint: String, region: String, batchSiz
 
   override def append(event: LogEvent): Unit = {
 
-    client.add(Utils.enrichLogEvent(event))
+    client.add(event)
   }
 }
 
