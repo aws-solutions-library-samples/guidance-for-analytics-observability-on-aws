@@ -253,10 +253,15 @@ class InfraStack(Stack):
                                        region=stack.region
                                    ),
                                    pipeline_name="spark-obs-logs",
+                                    log_publishing_options=CfnPipeline.LogPublishingOptionsProperty(
+                                        cloud_watch_log_destination=CfnPipeline.CloudWatchLogDestinationProperty(
+                                            log_group="/aws/vendedlogs/spark-logs"
+                                        ),
+                                        is_logging_enabled=True
+                                    ),
                                    )
 
         logs_pipeline.node.add_dependency(pipeline_policy)
-
 
         # OSI pipeline for metrics
         metrics_pipeline = CfnPipeline(self, 'MetricsPipeline',
@@ -270,6 +275,12 @@ class InfraStack(Stack):
                                            region=stack.region
                                        ),
                                        pipeline_name="spark-obs-metrics",
+                                       log_publishing_options=CfnPipeline.LogPublishingOptionsProperty(
+                                           cloud_watch_log_destination=CfnPipeline.CloudWatchLogDestinationProperty(
+                                               log_group="/aws/vendedlogs/spark-metrics"
+                                           ),
+                                           is_logging_enabled=True
+                                       ),
                                        )
         metrics_pipeline.node.add_dependency(pipeline_policy)
 

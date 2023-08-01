@@ -15,7 +15,7 @@ import software.amazon.awssdk.auth.signer.Aws4Signer
 import software.amazon.awssdk.auth.signer.params.Aws4SignerParams
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.http.apache.ApacheHttpClient
-import software.amazon.awssdk.http.{HttpExecuteRequest, SdkHttpFullRequest, SdkHttpMethod}
+import software.amazon.awssdk.http.{HttpExecuteRequest, HttpExecuteResponse, SdkHttpFullRequest, SdkHttpMethod}
 import software.amazon.awssdk.regions.Region
 
 import java.net.URI
@@ -31,7 +31,7 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
   private val credentialsProvider = DefaultCredentialsProvider.create
   private val signer = Aws4Signer.create
   private val client = ApacheHttpClient
-    .builder.maxConnections(10)
+    .builder.maxConnections(4)
     .build
   private lazy val params: Aws4SignerParams = Aws4SignerParams.builder()
     .awsCredentials(credentialsProvider.resolveCredentials())
@@ -76,15 +76,20 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, t
       .build
     val preparedRequest = client.prepareRequest(executeRequest)
 
-    val response = preparedRequest.call
-    // logger.info("data prepper response :" + Try(response.httpResponse.statusText()).getOrElse("NO RESPONSE"))
-    // logger.info("data prepper response :" + response.httpResponse.statusCode)
-    if (response.httpResponse.statusCode != 200)
-      throw new Exception("error sending to data prepper: "
-        + response.httpResponse.statusCode + " "
-        + Try(response.httpResponse.statusText()).getOrElse("NO RESPONSE")
-      )
-    preparedRequest.abort
+    var response: Option[HttpExecuteResponse] = None
+    try {
+      response = Some(preparedRequest.call)
+      if (response.isDefined)
+        if (response.get.httpResponse.statusCode != 200 )
+          throw new Exception("error sending to data prepper: "
+            + response.get.httpResponse.statusCode + " "
+            + Try(response.get.httpResponse.statusText()).getOrElse("NO RESPONSE")
+          )
+    } catch{
+      case e: Exception => println("exception in sending to data prepper: "+ e.getMessage)
+    } finally {
+      preparedRequest.abort
+    }
   }
 
   private def timeSinceLastEvent(): Int = {
