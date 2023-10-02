@@ -6,8 +6,8 @@
         <AppenderRef ref="Sparkobs"/>
     </Async>
     <SparkObs name="Sparkobs"
-              endpoint="https://spark-obs-logs-n5sgzfaolcluxtzw7q7dtdj6mq.us-east-1.osis.amazonaws.com/ingest"
-              region="us-east-1" batchSize="400" timeThreshold="20"/>
+              endpoint="https://spark-obs-logs-okbo4kk3q3d3vbh7zrsgqvhix4.us-west-2.osis.amazonaws.com/ingest"
+              region="us-west-2" batchSize="2000" timeThreshold="60"/>
 </Appenders>
 <Loggers>
     <Root level="info">

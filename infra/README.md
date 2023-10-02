@@ -1,5 +1,24 @@
 
-# CDK application for the infrastructure used by the AWS Analytics Observability
+# Spark Observability infrastucture
+
+The Spark Observability infrastructure is the component responsible for ingesting, processing, 
+storing and analyzing Spark logs and metrics collected via the [Spark Observability collector](../collector).
+
+It's an AWS CDK based application that can deploy different stacks based on your need:
+ * The backend stack provides an Opensearch based backend infrastructure to centrally store and analyze the logs and metrics. 
+   The backend is optional, you can use your own Opensearch domain.
+ * The ingestor stack provides 2 Opensearch Ingestion pipelines to ingest logs and metrics from the Spark applications. 
+   The ingestor is deployed closed to your Spark applications (same subnet). You need one ingestor per subnet where you have Spark applications.
+ * The EMR Serverless example stack provides an EMR Serverless application that runs the TPC-DS 3TB benchmark and send logs and metrics to the ingestor stack.
+ * The VPC stack provides a simple VPC that can be used to deploy the ingestor stack and the EMR Serverless example.
+
+The recommended order of deployment is:
+1. The backend
+2. The VPC
+3. The ingestor
+4. The EMR Serverless example
+
+## Getting started
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
@@ -7,8 +26,7 @@ This project is set up like a standard Python project.  The initialization
 process also creates a virtualenv within this project, stored under the `.venv`
 directory.  To create the virtualenv it assumes that there is a `python3`
 (or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+package.
 
 To manually create a virtualenv on MacOS and Linux:
 
@@ -35,26 +53,204 @@ Once the virtualenv is activated, you can install the required dependencies.
 $ pip install -r requirements.txt
 ```
 
-At this point you can now synthesize or deploy the CloudFormation template for this code.
+At this point you can now deploy stacks.
+
+You select the stack to deploy using the `Stack` context parameter of CDK with the values `backend`, `vpc`, `ingestor` or `example`:
+```bash
+cdk deploy -c Stack=backend ...
+cdk deploy -c Stack=vpc ...
+cdk deploy -c Stack=ingestor ...
+cdk deploy -c Stack=example ...
+```
+
+## Backend stack
+
+The backend stack provides the following components:
+ * A private Amazon Opensearch domain with Fine Grained Access Control enabled and internal database users
+ * An Amazon IAM Role with administrator privileges on the domain
+ * An ingestion role with write permissions on logs and metrics indices in the Opensearch domain and used by the pipelines
+ * User/password secrets in AWS Secret Manager for Opensearch Dashboards user and administrator
+ * An Amazon KMS Key to encrypt the data in the Opensearch domain
+ * An Amazon Cloudwatch Log Group to store logs from the Opensearch domain
+
+#### CDK context Parameters
+ * `TshirtSize`: [REQUIRED] define the size of the Opensearch domain to deploy. Possible options are XS, S, M, L, XL.
+ * `VpcID`: [OPTIONAL] the VPC ID where you want to deploy the backend infrastructure. 
+   If not provided, the stack will create a VPC in 3 AZs with one public and one private subnet per AZ.
+ * `OpensearchSubnetsIDs`: [OPTIONAL] the comma separated list of subnet IDs to use for deploying the backend infrastructure. 
+   We recommend to use private subnets. If not provided, the stack will use one private subnet per AZ (up to 3 maximum AZs). 
+ * `ReverseProxySubnetID`: [OPTIONAL] the public subnet ID to deploy the reverse proxy for accessing the Opensearch domain in the private subnet. 
+   If not provided, the stack will use one public subnet. 
+   
+```bash
+cdk deploy -c TshirtSize=XS -c VpcID=<MY_VPC_ID> -c OpensearchSubnetsIDs=<SUBNET_ID1>,<SUBNET_ID2> -c ReverseProxySubnetID=<SUBNET_ID3>
+```
+
+The CDK application outputs all the required information to use the backend:
+ * The Opensearch Dashboard URL
+ * The Opensearch domain endpoint (to be used in the ingestor stack)
+ * The Opensearch indices used for logs and metrics
+ * The ingestion IAM role ARN (to be used in the ingestor stack)
+
+#### Opensearch domain TshirtSize
+
+Here is the different configurations of the Opensearch domain based on the selected TshirtSize:
+ * XS
+   * No dedicated master
+   * Single-AZ
+   * 3x t3.small.search
+   * 10GB of EBS GP3 disk per node
+   
+ * S
+   * No dedicated masters
+   * Multi-AZ
+   * 3x m6g.large.search
+   * 80GB of EBS GP3 disk per node
+   
+ * M
+   * Dedicated masters
+   * Multi-AZ
+   * 3x c6g.large.search for master nodes
+   * 3x r6g.xlarge.search for data nodes
+   * 1x ultrawarm1.medium.search
+   * 600GB of EBS GP3 disk per node
+
+* L
+   * Dedicated masters
+   * Multi-AZ
+   * 3x c6g.xlarge.search for master nodes
+   * 3x r6g.4xlarge.search for data nodes
+   * 1x ultrawarm1.large.search
+   * 4TB of EBS GP3 disk per node
+
+* XL
+   * Dedicated masters
+   * Multi-AZ
+   * 5x c6g.2xlarge.search for master nodes
+   * 12x r6g.4xlarge.search for data nodes
+   * 4x ultrawarm1.large.search
+   * 4TB of EBS GP3 disk per node
+
+## VPC stack
+
+The VPC stack provides the following components:
+ * A VPC deployed within 1 availability zone
+ * 1 public and 1 private subnet
+ * 1 NAT gateway
+
+## Ingestor stack
+
+The ingestor stack provides the following components:
+ * Two public Opensearch Ingestion pipelines for ingesting logs and metrics respectively into an Opensearch domain
+ * A custom resource based on AWS Lambda to configure the Opensearch domain:
+    * Configure the user and roles
+    * Create the index mappings
+    * Load the pre-defined dashboards
+ * An IAM policy to attach to the Spark job execution role with permissions to send logs and metrics to the Opensearch Ingestion pipelines
+
+#### CDK context Parameters
+ * `PipelineRoleArn`: [REQUIRED] the IAM role ARN with permissions to create Opensearch indices in a domain and write to them.  
+ * `OpensearchDomainEndpoint`: [REQUIRED] the endpoint of the Opensearch domain that will store the indices
+ * `VpcID`: [OPTIONAL] the VPC ID where to deploy the Opensearch ingestion pipeline. 
+    If no VPC ID is provided, the ingestion pipeline is public.
+ * `SubnetsIDs`: [OPTIONAL] the comma separated list of subnets IDs to deploy the Opensearch ingestion pipeline.
+   If no subnets IDs are provided, it will use one private subnet per AZ from the provided VPC.
+
+
+If you provide your own Opensearch domain, you must ensure the pipeline role has the following trust relationship:
 
 ```
-$ cdk synth -c TshirtSize=xs
-$ cdk deploy -c TshirtSize=xs
+{
+   "Effect": "Allow",
+   "Principal": {
+      "Service": "osis-pipelines.amazonaws.com"
+   },
+   "Action": "sts:AssumeRole"
+}
 ```
 
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
+And the following permissions:
 
-
-## Create the ingestion pipeline
-
-Use the `pipeline.yaml` file to configure an ingestion pipeline in Opensearch service console. 
-Change the parameters to point to your infrastructure
-
-## TODO
-
-Add domain monitoring and indices permissions to avoid this issue
 ```
-{"error":{"root_cause":[{"type":"security_exception","reason":"no permissions for [cluster:monitor/health] and User [name=arn:aws:iam::099713751195:role/gromav, backend_roles=[arn:aws:iam::099713751195:role/gromav], requestedTenant=null]"}],"type":"security_exception","reason":"no permissions for [cluster:monitor/health] and User [name=arn:aws:iam::099713751195:role/gromav, backend_roles=[arn:aws:iam::099713751195:role/gromav], requestedTenant=null]"},"status":403}
+{
+    "Action": "es:DescribeDomain",
+    "Resource": "arn:aws:es:*:<ACCOUNT_ID>:domain/*",
+    "Effect": "Allow"
+},
+{
+    "Condition": {
+        "StringEquals": {
+            "aws:SourceAccount": "<ACCOUNT_ID>"
+        },
+        "ArnLike": {
+            "aws:SourceArn": "arn:aws:osis:<REGION>:<ACCOUNT_ID>:pipeline/*"
+        }
+    },
+    "Action": "es:ESHttp*",
+    "Resource": "arn:aws:es:<REGION>:<ACCOUNT_ID>:domain/spark-observability/*",
+    "Effect": "Allow"
+}
 ```
+
+The CDK application outputs all the required information to configure your Spark applications:
+ * The Opensearch Ingestion pipelines endpoints (one for logs and one for metrics)
+ * The Policy ARN to attach to the Spark execution role
+
+## Example stack
+
+The EMR Serverless example is a stack demonstrating how to use the Spark Observability solution in EMR Serverless.
+It's running a TPCDS benchmark that is configured to send logs and metrics to the `backend` stack via the `ingestor` stack.
+The [Spark Observability collector](../../collector) is loaded when the Spark application starts.
+
+The CDK application provisions the following components:
+* An Amazon IAM Role used as the EMR Serverless execution role
+* An IAM Policy imported from the collector policy ARN and attached to the EMR Serverless execution role
+* Amazon S3 buckets for source (imported from public bucket) and destination (created)
+* A custom docker image for EMR Serverless containing the collector JAR and the log4j2 configuration
+* An Amazon ECR repository for storing the docker image
+* An Amazon VPC with one AZ, one public subnet and one private subnet to run the EMR Serverless job
+* An EMR Serverless application with EMR 6.9, private subnet and autoscaling up to 100 executors
+* An AWS Step Function to trigger the EMR Serverless job and wait for completion
+* An Amazon Event Bridge rule to trigger the job every 2 hours (disabled by default)
+
+The job takes approximately 30 minutes to run and there is no overhead from the Spark Observability collector.
+
+#### Pre-requisites
+
+* Customize the `log4j2.properties` in `docker` folder with the endpoint URL of the Opensearch ingestion for logs.
+  The endpoint is generated by the `ingestor` stack and available as a CDK Output.
+
+* Build the collector library in `collector` folder and copy the jar file in `docker` folder so it's ready to be packaged in the EMR Serverless custom image:
+    * Run in `<ROOT>/collector`
+      ```
+      sbt run assembly
+      ```
+    * Copy the jar file
+      ```
+      cp <ROOT>/collector/target/scala-2.12/spark-observability-collector-assembly.jar <ROOT>/infra/emr-serverless/docker
+      ```
+
+#### CDK context Parameters
+
+* `CollectorPolicyArn`: [REQUIRED] the IAM policy ARN with permissions to send metrics and logs to the ingestor stack.
+* `MetricsPipelineUrl`: [REQUIRED] the URL of the Opensearch Ingestion pipeline for metrics. 
+  Provided by the `ingestor` stack as a CDK parameter.
+* `VpcID`: [OPTIONAL] the VPC ID where to deploy the EMR Serverless application.
+  If no VPC ID is provided, the EMR Application is public.
+* `SubnetsIDs`: [OPTIONAL] the comma separated list of subnets IDs to deploy the EMR Serverless application.
+  If no subnets IDs are provided, it will use all private subnets with one per AZ from the provided VPC.
+
+## Manually trigger the TPCS DS benchmark
+
+From the AWS Step Functions console, run the State Machine deployed by the CDK application.
+
+## Analyze data
+
+1. Go to the Opensearch Dashboard and analyze logs and metrics. The URL is provided by the `backend` stack as a CDK parameter. 
+The `admin` username and password are stored in AWS Secret Manager.
+2. In Opensearch Dashboard, click on the menu, then `Stack Management` under `Management`, and finally select `Index Patterns`.
+3. Create 3 index patterns:
+   1. One named `spark-logs*`. Select the `@timestamp` as the time field.
+   2. One named `spark-stage-metrics*`. Select the `@timestamp` as the time field.
+   3. One named `spark-task-metrics*`. Select the `@timestamp` as the time field.
+4. Click on the menu and go to `Dashboards`

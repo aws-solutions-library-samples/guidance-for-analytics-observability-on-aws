@@ -30,11 +30,9 @@ class ClusterConfig:
             )
         elif size == TshirtSize.S:
             self._cluster_config = CfnDomain.ClusterConfigProperty(
-                dedicated_master_count=3,
-                dedicated_master_enabled=True,
-                dedicated_master_type="t3.medium.search",
+                dedicated_master_enabled=False,
                 instance_count=3,
-                instance_type="m5.large.search",
+                instance_type="m6g.large.search",
                 warm_enabled=False,
                 zone_awareness_config=CfnDomain.ZoneAwarenessConfigProperty(
                     availability_zone_count=3
@@ -109,7 +107,7 @@ class ClusterConfig:
 
     def load_tshirt_size(size: Optional[str]):
         if size is None:
-            raise Exception("Tshirt size for Opensearch domain needs to be set via TshirtSize parameter")
+            raise Exception("TshirtSize parameter for Opensearch domain is required")
         elif size.lower() == 'xs':
             return TshirtSize.XS
         elif size.lower() == 's':
@@ -121,7 +119,7 @@ class ClusterConfig:
         elif size.lower() == 'xl':
             return TshirtSize.XL
         else:
-            raise Exception("Tshirt size must be XS, S, M, L or XL")
+            raise Exception("TshirtSize parameter must be XS, S, M, L or XL")
 
     @property
     def cluster_config(self):

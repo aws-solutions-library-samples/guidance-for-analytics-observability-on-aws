@@ -120,6 +120,14 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, b
   private var executorId : String = ObservabilityClient.UNDEFINED_CONST
 
   /**
+   * Set the last flush time to an Instant. Used to initialize the batching process after Spark application has started.
+   * @param time The Instant to set the lastFlush
+   */
+  def setLastFlush(time: java.time.Instant): Unit = {
+    lastFlush = time
+  }
+
+  /**
    * Return the status of the context composed of the application name, the application ID and the executor ID are known
    * @return True if all metadata is known, False otherwise
    */

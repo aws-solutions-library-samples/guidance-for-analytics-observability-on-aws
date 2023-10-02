@@ -2,13 +2,25 @@ package com.amazonaws.sparkobservability
 
 import scala.collection.JavaConverters._
 
+
+/**
+ * Abstract class that serves as the base class for all custom metrics.
+ */
+
 sealed abstract class CustomMetrics(val appName: String, val appId: String, val jobId: String, val metricsType: String) extends Product {
 
+  /**
+   * Convert the metric object into a map representation.
+   * @return A Java Map with key/value pairs.
+   */
   def toMap() = {
     this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.asJava
   }
 }
 
+/**
+ * Case class that represents metrics extracted from Spark tasks
+ */
 case class CustomTaskMetrics(
                             override val appName: String,
                             override val appId: String,
@@ -31,6 +43,9 @@ case class CustomTaskMetrics(
                             shuffleBytesWritten: Double
                             ) extends CustomMetrics(appName, appId, jobId, metricsType="taskMetrics")
 
+/**
+ * Case class that represents a subset of metrics extracted from Spark tasks and used to process metrics aggregation
+ */
 case class CustomLightTaskMetrics(
                             override val appName: String,
                             override val appId: String,
@@ -41,6 +56,9 @@ case class CustomLightTaskMetrics(
                             shuffleBytesRead: Double
                             ) extends CustomMetrics(appName, appId, jobId, metricsType="lightTaskMetrics")
 
+/**
+ * Case class that represents metrics aggregated from tasks at the stage level
+ */
 case class CustomStageAggMetrics(
                              override val appName: String,
                              override val appId: String,

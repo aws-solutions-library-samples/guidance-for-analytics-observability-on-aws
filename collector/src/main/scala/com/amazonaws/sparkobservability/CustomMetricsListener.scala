@@ -1,22 +1,57 @@
 package com.amazonaws.sparkobservability
 
-import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd, SparkListenerJobEnd, SparkListenerJobStart, SparkListenerStageCompleted, SparkListenerTaskEnd}
+import org.apache.spark.scheduler._
 import org.slf4j.LoggerFactory
 
+import java.time.Instant
 import scala.collection.mutable.{HashMap, ListBuffer}
-import scala.math
 
+/**
+ * A custom Spark listener to collect metrics and send to an observability client.
+ */
 class CustomMetricsListener extends SparkListener {
 
+  /**
+   * The logger to log debug information.
+   */
   private val logger = LoggerFactory.getLogger(this.getClass.getName)
+
+  /**
+   * The client to send metrics to the observability solution.
+   */
   private val client = new ObservabilityClient[CustomMetrics](Utils.getObservabilityEndpoint(), Utils.getAwsRegion(), Utils.getBatchSize(), Utils.getTimeThreshold())
+
+  /**
+   * A map to keep track of the mapping between stage ID and job ID. Used to enrich metrics.
+   */
   private val stageToJobMapping = HashMap.empty[Int, String]
+
+  /**
+   * A buffer to collect task metrics within a stage and aggregate them per stage
+   */
   private val taskMetricsBuffer = ListBuffer[CustomLightTaskMetrics]()
 
+  /**
+   * Listen to application end and then flush any pending metrics to the observability client.
+   */
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
     println("shutdown hook! Flushing observability client...")
     client.flushEvents()
   }
+
+  /**
+   * Listen to application start, and then set the last flush time to now.
+   * Avoid the situation where Spark takes more time than the batchTime and then the ObservabilityClient sends the
+   * first metric alone.
+   */
+  override def onApplicationStart(appStart: SparkListenerApplicationStart) {
+    logger.debug(s"App started in ${appStart.time} seconds... Initializing lastFlush now")
+    client.setLastFlush(Instant.now)
+  }
+
+  /**
+   * Listen to job start, and then map each stage ID to the corresponding job ID.
+   */
   override def onJobStart(jobStart: SparkListenerJobStart) {
     logger.debug(s"Job started with ${jobStart.stageInfos.size} stages: $jobStart")
     // Map each stageId to the jobId
@@ -25,10 +60,16 @@ class CustomMetricsListener extends SparkListener {
     }
   }
 
+  /**
+   * Listen to job end, and then flush any pending metrics to the observability client.
+   */
   override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
     client.flushEvents()
   }
 
+  /**
+   * Listen to stage completion, process stage aggregated metrics and then send them to the observability client.
+   */
   override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
     val metrics = collectStageCustomMetrics(stageCompleted)
     logger.debug(s"Stage metrics collected: ${metrics}")
@@ -37,6 +78,10 @@ class CustomMetricsListener extends SparkListener {
     taskMetricsBuffer.clear()
   }
 
+  /**
+   * Listen to task end, collect tasks metrics, send them to the observability client and create light task metrics
+   * used to process stage level aggregation.
+   */
   override def onTaskEnd(taskEnded: SparkListenerTaskEnd){
     val metrics = collectTaskCustomMetrics(taskEnded)
     client.add(metrics)
@@ -52,6 +97,11 @@ class CustomMetricsListener extends SparkListener {
     )
   }
 
+  /**
+   * Collect metrics from completed tasks.
+   * @param taskEnded The Spark metrics related to the completed task
+   * @return The CustomTaskMetrics for the current task
+   */
   def collectTaskCustomMetrics(taskEnded: SparkListenerTaskEnd): CustomTaskMetrics = {
     CustomTaskMetrics(
       appName = Utils.getAppName(),
@@ -76,6 +126,16 @@ class CustomMetricsListener extends SparkListener {
     )
   }
 
+  /**
+   * Collect stage level aggregated metrics when a stage completes.
+   * The method collects all the task metrics from the stage and perform the following aggregations:
+   *   * max relative distance for input bytes read
+   *   * max input bytes read
+   *   * max relative distance for shuffle bytes read
+   *   * max shuffle bytes read
+   * @param stageCompleted The Spark metrics related to the completed stage
+   * @return The CustomStageAggMetrics for the current stage
+   */
   def collectStageCustomMetrics(stageCompleted: SparkListenerStageCompleted): CustomStageAggMetrics = {
     val length = taskMetricsBuffer.length
 

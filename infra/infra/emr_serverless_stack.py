@@ -1,4 +1,6 @@
 from os.path import dirname, join
+
+import cdk_ecr_deployment as ecr_deploy
 from aws_cdk import (
     Duration,
     Fn,
@@ -7,17 +9,15 @@ from aws_cdk import (
     aws_iam as iam,
     aws_s3 as s3,
     aws_emrserverless as emr,
-    aws_ec2 as ec2,
     aws_stepfunctions as sfn,
     aws_stepfunctions_tasks as tasks,
     aws_events as events,
     aws_events_targets as targets, CfnOutput,
-    aws_s3_deployment as s3_deploy, Aws,
     aws_ecr_assets as ecr_assets,
     aws_ecr as ecr,
 )
+from aws_cdk.aws_ec2 import Vpc, SecurityGroup, Peer, Port, SubnetSelection, SubnetType
 from constructs import Construct
-import cdk_ecr_deployment as ecr_deploy
 
 
 class EmrServerlessStack(Stack):
@@ -34,27 +34,24 @@ class EmrServerlessStack(Stack):
             assumed_by=iam.ServicePrincipal('emr-serverless.amazonaws.com')
         )
         # Get the ingestion pipeline managed policy from context or parameter
-        collector_policy_arn = self.node.try_get_context('collector_policy_arn')
+        collector_policy_arn = self.node.try_get_context('CollectorPolicyArn')
+        if collector_policy_arn is None:
+            raise Exception("CollectorPolicyArn context parameter must be set")
+
+
         emr_role.add_managed_policy(iam.ManagedPolicy.from_managed_policy_arn(self, 'CollectorPolicy', collector_policy_arn))
 
         # Public bucket used for source data
         source_bucket = s3.Bucket.from_bucket_name(self, "SourceBucket", "blogpost-sparkoneks-us-east-1")
-        source_bucket.grant_read(emr_role)
+        source_bucket.grant_read(emr_role, "blog/BLOG_TPCDS-TEST-3T-partitioned*")
 
-        artifact_bucket = s3.Bucket.from_bucket_name(self, 'ArtifactBucket', 'aws-bigdata-blog')
-        artifact_bucket.grant_read(emr_role)
+        # Artifact bucket used for Spark jar
+        artifact_bucket = s3.Bucket.from_bucket_name(self, "ArtifactBucket", "aws-bigdata-blog")
+        artifact_bucket.grant_read(emr_role, 'artifacts/oss-spark-benchmarking/spark-benchmark-assembly-3.3.0.jar')
 
         # Destination bucket for storing results data and logs
         destination_bucket = s3.Bucket(self, 'DestinationBucket', auto_delete_objects=True, removal_policy=RemovalPolicy.DESTROY)
         destination_bucket.grant_read_write(emr_role)
-
-        # The jar file containing the Spark Observability tooling
-        # Removed the jar file deployed on S3 because it's already in the docker image
-        # jar_file = s3_deploy.BucketDeployment(self, 'SparkObservabilityJarFile',
-        #                                       sources=[s3_deploy.Source.asset(join(dirname(dirname(dirname(dirname(__file__)))), "collector/target/scala-2.12/spark-observability-collector-assembly-0.0.1.jar"))],
-        #                                       destination_bucket=destination_bucket,
-        #                                       extract=False
-        #                                       )
 
         emr_custom_repo_name = 'emr-6.9-observability'
         # Create the ECR repository (required to grant emr-serverless with resource based policy)
@@ -72,40 +69,70 @@ class EmrServerlessStack(Stack):
                                                       dest=ecr_deploy.DockerImageName(f"{emr_custom_repo.repository_uri}:latest")
                                                       )
 
-        # VPC used to deploy the EMR serverless application
-        vpc = ec2.Vpc(self, 'Vpc',
-                      max_azs=1,
-                      nat_gateways=1,
-                      )
+        # Get the VPC from parameter or create a new one
+        vpc_id_param = scope.node.try_get_context("VpcID")
+        if vpc_id_param is not None:
 
-        # EMR serverless application
-        emr_serverless = emr.CfnApplication(self, "EmrServerless",
-                                            name="emr-serverless-demo",
-                                            image_configuration=emr.CfnApplication.ImageConfigurationInputProperty(
-                                                image_uri=f"{stack.account}.dkr.ecr.{stack.region}.amazonaws.com/{emr_custom_repo_name}:latest"
-                                            ),
-                                            architecture='X86_64',
-                                            auto_start_configuration=emr.CfnApplication.AutoStartConfigurationProperty(enabled=True),
-                                            auto_stop_configuration=emr.CfnApplication.AutoStopConfigurationProperty(
-                                                enabled=True,
-                                                idle_timeout_minutes=1
-                                            ),
-                                            release_label="emr-6.9.0",
-                                            type="Spark",
-                                            network_configuration=emr.CfnApplication.NetworkConfigurationProperty(
-                                                security_group_ids=[vpc.vpc_default_security_group],
-                                                subnet_ids=list(map(lambda x: x.subnet_id, vpc.private_subnets))
-                                            ),
-                                            maximum_capacity=emr.CfnApplication.MaximumAllowedResourcesProperty(
-                                                cpu="1000vcpu",
-                                                memory="4000gb",
-                                                disk="16000gb"
-                                            ))
+            vpc = Vpc.from_lookup(self, 'Vpc', vpc_id=vpc_id_param)
+
+            sec_group = SecurityGroup(self, 'PipelineSecurityGroup', vpc=vpc, allow_all_outbound=True)
+
+            # Get the Subnets from parameters or takes private ones from the Vpc with one per AZ.
+            subnets_ids_param = scope.node.try_get_context("SubnetsIDs")
+            if subnets_ids_param is None:
+                subnets = SubnetSelection(
+                    subnets=vpc.select_subnets(one_per_az=True, subnet_type=SubnetType.PRIVATE_WITH_EGRESS).subnets)
+                subnets_ids = list(map(lambda subnet: subnet.subnet_id, subnets.subnets))
+            else:
+                subnets_ids = subnets_ids_param.split(',')
+
+            # EMR serverless application
+            emr_serverless = emr.CfnApplication(self, "EmrServerless",
+                                                name="emr-serverless-demo",
+                                                image_configuration=emr.CfnApplication.ImageConfigurationInputProperty(
+                                                    image_uri=f"{stack.account}.dkr.ecr.{stack.region}.amazonaws.com/{emr_custom_repo_name}:latest"
+                                                ),
+                                                architecture='X86_64',
+                                                auto_start_configuration=emr.CfnApplication.AutoStartConfigurationProperty(enabled=True),
+                                                auto_stop_configuration=emr.CfnApplication.AutoStopConfigurationProperty(
+                                                    enabled=True,
+                                                    idle_timeout_minutes=1
+                                                ),
+                                                release_label="emr-6.9.0",
+                                                type="Spark",
+                                                network_configuration=emr.CfnApplication.NetworkConfigurationProperty(
+                                                    security_group_ids=[sec_group.security_group_id],
+                                                    subnet_ids=subnets_ids
+                                                ),
+                                                maximum_capacity=emr.CfnApplication.MaximumAllowedResourcesProperty(
+                                                    cpu="2000vcpu",
+                                                    memory="10000gb",
+                                                    disk="32000gb"
+                                                ))
+        else:
+            emr_serverless = emr.CfnApplication(self, "EmrServerless",
+                                                name="emr-serverless-demo",
+                                                image_configuration=emr.CfnApplication.ImageConfigurationInputProperty(
+                                                    image_uri=f"{stack.account}.dkr.ecr.{stack.region}.amazonaws.com/{emr_custom_repo_name}:latest"
+                                                ),
+                                                architecture='X86_64',
+                                                auto_start_configuration=emr.CfnApplication.AutoStartConfigurationProperty(enabled=True),
+                                                auto_stop_configuration=emr.CfnApplication.AutoStopConfigurationProperty(
+                                                    enabled=True,
+                                                    idle_timeout_minutes=1
+                                                ),
+                                                release_label="emr-6.9.0",
+                                                type="Spark",
+                                                maximum_capacity=emr.CfnApplication.MaximumAllowedResourcesProperty(
+                                                    cpu="2000vcpu",
+                                                    memory="10000gb",
+                                                    disk="32000gb"
+                                                ))
 
         emr_serverless.node.add_dependency(emr_image_deployment)
 
         # Get the OSIS pipeline from CDK parameters or context
-        metrics_ingestion_url = self.node.try_get_context('metrics_ingestion_url')
+        metrics_ingestion_url = self.node.try_get_context('MetricsPipelineUrl')
 
         # StepFunctions task to trigger the EMR serverless application with entrypoint and dependencies archive
         # Removed the jar file deployed on S3 because it's already in the docker image
@@ -133,7 +160,7 @@ class EmrServerlessStack(Stack):
                                                           "SparkSubmit": {
                                                               "EntryPoint": "s3://aws-bigdata-blog/artifacts/oss-spark-benchmarking/spark-benchmark-assembly-3.3.0.jar",
                                                               "EntryPointArguments": ["s3://blogpost-sparkoneks-us-east-1/blog/BLOG_TPCDS-TEST-3T-partitioned", f"s3://{destination_bucket.bucket_name}/EMRSERVERLESS_TPCDS-TEST-3T-RESULT","/opt/tpcds-kit/tools","parquet","3000","1","false","q1-v2.4,q10-v2.4,q11-v2.4,q12-v2.4,q13-v2.4,q14a-v2.4,q14b-v2.4,q15-v2.4,q16-v2.4,q17-v2.4,q18-v2.4,q19-v2.4,q2-v2.4,q20-v2.4,q21-v2.4,q22-v2.4,q23a-v2.4,q23b-v2.4,q24a-v2.4,q24b-v2.4,q25-v2.4,q26-v2.4,q27-v2.4,q28-v2.4,q29-v2.4,q3-v2.4,q30-v2.4,q31-v2.4,q32-v2.4,q33-v2.4,q34-v2.4,q35-v2.4,q36-v2.4,q37-v2.4,q38-v2.4,q39a-v2.4,q39b-v2.4,q4-v2.4,q40-v2.4,q41-v2.4,q42-v2.4,q43-v2.4,q44-v2.4,q45-v2.4,q46-v2.4,q47-v2.4,q48-v2.4,q49-v2.4,q5-v2.4,q50-v2.4,q51-v2.4,q52-v2.4,q53-v2.4,q54-v2.4,q55-v2.4,q56-v2.4,q57-v2.4,q58-v2.4,q59-v2.4,q6-v2.4,q60-v2.4,q61-v2.4,q62-v2.4,q63-v2.4,q64-v2.4,q65-v2.4,q66-v2.4,q67-v2.4,q68-v2.4,q69-v2.4,q7-v2.4,q70-v2.4,q71-v2.4,q72-v2.4,q73-v2.4,q74-v2.4,q75-v2.4,q76-v2.4,q77-v2.4,q78-v2.4,q79-v2.4,q8-v2.4,q80-v2.4,q81-v2.4,q82-v2.4,q83-v2.4,q84-v2.4,q85-v2.4,q86-v2.4,q87-v2.4,q88-v2.4,q89-v2.4,q9-v2.4,q90-v2.4,q91-v2.4,q92-v2.4,q93-v2.4,q94-v2.4,q95-v2.4,q96-v2.4,q97-v2.4,q98-v2.4,q99-v2.4,ss_max-v2.4","true"],
-                                                              "SparkSubmitParameters": f"--conf spark.driver.extraJavaOptions=-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector --conf spark.executor.extraJavaOptions=-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener --conf spark.metrics.region={stack.region} --conf spark.metrics.endpoint=https://{metrics_ingestion_url}/ingest --conf spark.metrics.batchSize=400 --conf spark.metrics.timeThreshold=60 --conf spark.dynamicAllocation.initialExecutors=20 --class com.amazonaws.eks.tpcds.BenchmarkSQL"
+                                                              "SparkSubmitParameters": f"--conf spark.driver.extraJavaOptions=-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector --conf spark.executor.extraJavaOptions=-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector --conf spark.extraListeners=com.amazonaws.sparkobservability.CustomMetricsListener --conf spark.metrics.region={stack.region} --conf spark.metrics.endpoint={metrics_ingestion_url} --conf spark.metrics.batchSize=400 --conf spark.metrics.timeThreshold=60 --conf spark.dynamicAllocation.initialExecutors=20 --class com.amazonaws.eks.tpcds.BenchmarkSQL"
                                                           },
                                                       }
                                                   },

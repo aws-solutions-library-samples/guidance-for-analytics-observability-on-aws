@@ -3,30 +3,53 @@ import os
 
 import aws_cdk as cdk
 
-from infra.infra_stack import InfraStack
-
+from infra.backend_stack import BackendStack
+from infra.emr_serverless_stack import EmrServerlessStack
+from infra.ingestor_stack import IngestorStack
+from infra.vpc import VpcStack
 
 app = cdk.App()
-InfraStack(app, "InfraStack",
-           # env=cdk.Environment(
-           #     region='us-east-1',
-           #     account='11111111111111',
-           # )
-    # If you don't specify 'env', this stack will be environment-agnostic.
-    # Account/Region-dependent features and context lookups will not work,
-    # but a single synthesized template can be deployed anywhere.
 
-    # Uncomment the next line to specialize this stack for the AWS Account
-    # and Region that are implied by the current CLI configuration.
+account = os.getenv('AWS_ACCOUNT_ID')
+if account is None:
+    raise Exception("AWS_ACCOUNT_ID environment variable must be set")
 
-    #env=cdk.Environment(account=os.getenv('CDK_DEFAULT_ACCOUNT'), region=os.getenv('CDK_DEFAULT_REGION')),
+region = os.getenv('AWS_REGION')
+if region is None:
+    raise Exception("AWS_REGION environment variable must be set")
 
-    # Uncomment the next line if you know exactly what Account and Region you
-    # want to deploy the stack to. */
+if app.node.try_get_context('Stack') == 'backend':
+    backend = BackendStack(app, "BackendStack",
+                           env=cdk.Environment(
+                               account=account,
+                               region=region,
+                           )
+                           # If you don't specify 'env', the VPC will be created with only 2 AZs instead dof 3 AZs.
+                           )
 
-    #env=cdk.Environment(account='123456789012', region='us-east-1'),
+elif app.node.try_get_context('Stack') == 'ingestor':
 
-    # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-    )
+    IngestorStack(app, 'IngestorStack',
+                  env=cdk.Environment(
+                      account=account,
+                      region=region,
+                  ))
 
+elif app.node.try_get_context('Stack') == 'vpc':
+
+    VpcStack(app, 'VpcStack',
+             env=cdk.Environment(
+                 account=account,
+                 region=region,
+             ))
+
+elif app.node.try_get_context('Stack') == 'example':
+
+    EmrServerlessStack(app, 'EmrServerlessExampleStack',
+                       env=cdk.Environment(
+                           account=account,
+                           region=region,
+                       ))
+else:
+    raise Exception("Stack parameter must be 'backend', 'vpc', 'ingestor' or 'example'")
 app.synth()
