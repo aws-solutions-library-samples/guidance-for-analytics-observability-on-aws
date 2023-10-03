@@ -2,12 +2,11 @@
 
 The Spark observability collector is the component responsible for collecting Spark logs and metrics in near real-time, 
 directly from the Spark application and sending them to the [Spark Observability infrastructure](../infra). 
-It's a Scala based component available as a jar file that is compatible with any Apache Spark runtime as long as the Jar file is on the classpath.
+It's a Scala based component available as a jar file that is compatible with any Apache Spark 3.3.0 runtime as long as the Jar file is on the classpath.
 
 The collector is composed of:
 - A Spark customer listener to collect Spark metrics from the driver
 - A custom Log4j2 appender to collect Spark executors and driver logs
-- A custom Spark plugin to execute arbitrary tasks when starting executors and driver (currently not used)
 - A custom Opensearch Ingestion client to send metrics and logs to an Opensearch Ingestion pipeline
 
 

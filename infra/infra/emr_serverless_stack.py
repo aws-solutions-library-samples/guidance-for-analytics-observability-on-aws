@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from os.path import dirname, join
 
 import cdk_ecr_deployment as ecr_deploy
@@ -133,6 +136,8 @@ class EmrServerlessStack(Stack):
 
         # Get the OSIS pipeline from CDK parameters or context
         metrics_ingestion_url = self.node.try_get_context('MetricsPipelineUrl')
+        if metrics_ingestion_url is None:
+            raise Exception('MetricsPipelineUrl context parameter must be set')
 
         # StepFunctions task to trigger the EMR serverless application with entrypoint and dependencies archive
         # Removed the jar file deployed on S3 because it's already in the docker image

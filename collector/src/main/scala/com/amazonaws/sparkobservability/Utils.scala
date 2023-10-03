@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 package com.amazonaws.sparkobservability
 
 import org.apache.logging.log4j.core.LogEvent
@@ -107,5 +110,5 @@ object Utils {
    */
   def getTimeThreshold(): Int = {
     Try(SparkEnv.get.conf.get("spark.metrics.timeThreshold")).getOrElse("10").toInt
-  }s
+  }
 }

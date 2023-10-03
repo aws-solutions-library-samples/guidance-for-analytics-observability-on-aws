@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 # Dockerfile
 FROM public.ecr.aws/emr-serverless/spark/emr-6.9.0:latest
 

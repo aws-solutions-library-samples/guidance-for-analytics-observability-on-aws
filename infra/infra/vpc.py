@@ -1,3 +1,6 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 from aws_cdk import Stack, CfnOutput
 from aws_cdk.aws_ec2 import Vpc
 from constructs import Construct
