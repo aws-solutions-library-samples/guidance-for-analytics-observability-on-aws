@@ -1,4 +1,4 @@
-# AWS SparkInsights
+# AWS Spark Observability
 
 Introducing AWS Spark Observability - An open source observability solution for Apache Spark
 
