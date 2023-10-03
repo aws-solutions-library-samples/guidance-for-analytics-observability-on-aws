@@ -14,6 +14,10 @@ The solution provides out-of-the-box dashboards and alerts tuned for Spark troub
 
 We utilize Spark's extensibility APIs like SparkListener and asynchronous Log4J appenderes to build an non-invasive monitoring solution that doesn't impact the performance of your Spark application.
 
+## Architecture
+
+![AWS Spark Observability architecture](./static/spark-observability.png)
+
 ## Getting started
 
 Follow the instructions in the [infra](./infra/README.md) folder to deploy the different components of the solution
