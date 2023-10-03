@@ -1,10 +1,10 @@
 # AWS SparkInsights
 
-Introducing SparkInsights - An open source observability solution for Apache Spark
+Introducing AWS Spark Observability - An open source observability solution for Apache Spark
 
-SparkInsights provides real-time visibility into Spark application performance to detect and troubleshoot common challenges like task skew, GC pressure, shuffle read/write bottlenecks, speculative tasks, etc.
+AWS Spark Observability provides real-time visibility into Spark application performance to detect and troubleshoot common challenges like task skew, GC pressure, shuffle read/write bottlenecks, speculative tasks, etc.
 
-It consists of a jar file (SparkInsights.jar) that is added to the classpath of Spark applications. This jar contains:
+It consists of a jar file that is added to the classpath of Spark applications. This jar contains:
  * a custom SparkListener that collects metrics like task runtime, GC time, shuffle read/write metrics, etc. The metrics are aggregated and sent to a backend for storage and analysis.
  * a Log4J custom appender that ships application logs in real-time to the backend. This provides correlated log data to complement the metrics for troubleshooting.
 
