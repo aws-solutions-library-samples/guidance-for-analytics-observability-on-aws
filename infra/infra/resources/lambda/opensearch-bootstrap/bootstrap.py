@@ -3,6 +3,7 @@
 
 
 import base64
+from email import header
 import json
 import logging
 import os
@@ -29,14 +30,16 @@ session = requests.Session()
 ssm_client = boto3.client('secretsmanager')
 os_client = boto3.client('opensearch')
 
+pipeline_iam_role = os.environ['PIPELINE_ROLE_ARN']
+
 pipeline_role_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/pipeline_role.json"
 pipeline_role_mapping_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/pipeline_role_mapping.j2"
-pipeline_iam_role = os.environ['PIPELINE_ROLE_ARN']
 user_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/user.j2"
 admin_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/users/admin.j2"
 logs_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-logs.json"
 stage_agg_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-stage-agg-metrics.json"
 task_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-task-metrics.json"
+data_skew_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/dashboards/data-skew.ndjson"
 
 
 awsauth = AWS4Auth(credentials.access_key,
@@ -62,22 +65,114 @@ def get_secret(secret_arn: str):
             secret = base64.b64decode(response['SecretBinary'])
         return json.loads(secret)
 
+def load_content(path: str):
+    """
+    Creates a payload for OpenSearch service.
+    """
+    logger.info(f'Reading from {path}')
+    with open(path) as file_:
+        content = file_.read()
+    return content
 
-def send_to_es(action: str, path: str, payload: json = None):
+def send_to_os(action: str, path: str, payload: str = None, headers: dict = None):
     """
     Sends a request to OpenSearch service with AWS4Auth.
     """
     url = f"https://{host}/{path}"
 
     if action == 'PUT':
-        r = session.put(url, auth=awsauth, json=payload)
+        r = session.put(url, auth=awsauth, json=payload, headers=headers)
     elif action == 'DELETE':
-        r = session.delete(url, auth=awsauth)
+        r = session.delete(url, auth=awsauth, headers=headers)
+    elif action == 'POST':
+        r = session.post(url, auth=awsauth, json=payload, headers=headers)
+    elif action == 'POST_FILE':
+        r = session.post(url, auth=awsauth, files={'file': payload}, headers=headers)
     else:
         raise Exception('HTTP action not supported')
     logger.info(r.text)
     return r
 
+def os_resource(action: str, os_path: str, resource_path: str = None, headers: dict = None):
+    """
+    generic CRUD operation on Opensearch resources
+    """
+    if action == 'POST' or action == 'PUT':
+        content = load_content(resource_path)
+        payload = json.loads(content)
+        return send_to_os(action=action, path=os_path, payload=payload, headers=headers)
+    
+    elif action == 'POST_FILE':
+        payload = open(resource_path, 'rb')
+        return send_to_os('POST_FILE', os_path, payload, headers)
+
+    elif action == 'DELETE':
+        return send_to_os(action=action, path=os_path, headers=headers)
+    else:
+        raise Exception('Resource action not supported, only POST, PUT or DELETE')
+
+def saved_objects(name: str, action: str, resource_path: str = None, id : str = None, type: str = None):
+    """
+    Dashboards CRUD operations
+    """
+    if action == 'CREATE':
+        logger.info(f'Creating {name} saved_objects at {resource_path}')
+        response = os_resource(action='POST_FILE', os_path="_dashboards/api/saved_objects/_import?overwrite=true", resource_path=resource_path, headers={'osd-xsrf': 'true'})
+        if not response.ok:
+            raise Exception(f'Error {response.status_code} in {name} dashboard creation: {response.text}')
+        
+        results = response.json().get('successResults')
+        for r in results:
+            del r['meta']
+            del r['overwrite']
+        return results
+
+    elif action == 'DELETE':
+        response = os_resource(action='DELETE', os_path=f"_dashboards/api/saved_objects/{type}/{id}", headers={'osd-xsrf': 'true'})
+        if not response.ok:
+            raise Exception(f'Error {response.status_code} in deleting {name} dashboard: {response.text}')
+        
+    else:
+        raise Exception('Resource action not supported, only CREATE or DELETE')
+    
+def index_template(name: str, action: str, resource_path: str = None, id : str = None):
+    """
+    Index template CRUD operations
+    """
+    if action == 'CREATE':
+        logger.info(f'Creating {name} index template at {resource_path}')
+        response = os_resource(action='PUT', os_path=f"_index_template/{name}", resource_path=resource_path)
+        if not response.ok:
+            raise Exception(f'Error {response.status_code} in {name} index template creation: {response.text}')
+        
+    elif action == 'DELETE':
+        response = os_resource(action='DELETE', os_path=f"_index_template/{name}")
+        if not response.ok:
+            raise Exception(f'Error {response.status_code} in deleting {name} index template: {response.text}')
+
+    else:
+        raise Exception('Resource action not supported, only CREATE or DELETE')
+    
+def user(action: str, secret_arn: str, resource_path: str = None):
+    """
+    User CRUD operations
+    """
+    if action == 'CREATE':
+        secret = get_secret(secret_arn)
+        content = load_content(resource_path)
+        payload = Template(content).render(secret_password=secret['password'])
+        path = f"_plugins/_security/api/internalusers/{secret['username']}"
+        response = send_to_os('PUT', path, json.loads(payload))
+
+        if not response.ok:
+            raise Exception(f'Error {response.status_code} in {secret_arn} creation: {response.text}')
+    elif action == 'DELETE':
+        secret = get_secret(secret_arn)
+        path = f"_plugins/_security/api/internalusers/{secret['username']}"
+        response = send_to_os('DELETE', path)
+
+        if not response.ok:
+            raise Exception(f'Error {response.status_code} in deleting {secret_arn}: {response.text}')
 
 def on_event(event: json, context):
     logger.info(event)
@@ -92,27 +187,15 @@ def on_create(event: json):
     props = event["ResourceProperties"]
     logger.info("create new resource with props %s" % props)
 
-    # create role for pipeline
-    logger.info(f'Reading role at {pipeline_role_path}')
-    with open(pipeline_role_path) as file_:
-        content = file_.read()
-    payload = json.loads(content)
-    path = '_opendistro/_security/api/roles/pipeline_role'
-
-    response = send_to_es('PUT', path, payload)
-
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in pipeline role creation: {response.text}')
+    # create role for pipeline    
+    os_resource('PUT', os_path=f"_opendistro/_security/api/roles/pipeline_role", resource_path=pipeline_role_path)
 
     # create the role mapping for pipeline
-    logger.info(f'Reading role mapping template at {pipeline_role_mapping_path}')
-    with open(pipeline_role_mapping_path) as file_:
-        content = file_.read()
-    template = Template(content)
-    payload = template.render(backend_role=pipeline_iam_role)
+    content = load_content(pipeline_role_mapping_path)
+    payload = Template(content).render(backend_role=pipeline_iam_role)
     path = "_opendistro/_security/api/rolesmapping/pipeline_role"
 
-    response = send_to_es('PUT', path, json.loads(payload))
+    response = send_to_os('PUT', path, json.loads(payload))
 
     if not response.ok:
         raise Exception(f'Error {response.status_code} in pipeline role mapping creation: {response.text}')
@@ -127,77 +210,45 @@ def on_create(event: json):
     )
     logger.info(response)
     status_code = response['ResponseMetadata']['HTTPStatusCode']
-    if status_code is not 200:
+    if status_code != 200:
         raise Exception(f'Error {status_code} in domain security configuration update: {response["ResponseMetadata"]}')
 
     # create the admin for dashboard
-    secret = get_secret(admin_secret_arn)
-    logger.info(f'Reading admin definition at {admin_path}')
-    with open(admin_path) as file_:
-        content = file_.read()
-    template = Template(content)
-    payload = template.render(secret_password=secret['password'])
-    path = f"_plugins/_security/api/internalusers/{secret['username']}"
-    response = send_to_es('PUT', path, json.loads(payload))
-
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in admin user creation: {response.text}')
+    user('CREATE', secret_arn=admin_secret_arn, resource_path=admin_path)
 
     # create the user for dashboard
-    secret = get_secret(user_secret_arn)
-    logger.info(f'Reading user definition at {user_path}')
-    with open(user_path) as file_:
-        content = file_.read()
-    template = Template(content)
-    payload = template.render(secret_password=secret['password'])
-    path = f"_plugins/_security/api/internalusers/{secret['username']}"
-    response = send_to_es('PUT', path, json.loads(payload))
-
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in read only user creation: {response.text}')
+    user('CREATE', secret_arn=user_secret_arn, resource_path=user_path)
 
     # create the index template for spark logs
-    logger.info(f'Reading logs index template at {logs_template_path}')
-    with open(logs_template_path) as file_:
-        content = file_.read()
-    payload = json.loads(content)
-    path = "_index_template/spark_logs"
-
-    response = send_to_es('PUT', path, payload)
-
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in logs index template creation: {response.text}')
+    index_template('spark_logs', 'CREATE', resource_path=logs_template_path)
 
     # create the index template for spark task metrics
-    logger.info(f'Reading task metrics index template at {task_template_path}')
-    with open(task_template_path) as file_:
-        content = file_.read()
-    payload = json.loads(content)
-    path = "_index_template/spark_task_metrics"
-
-    response = send_to_es('PUT', path, payload)
-
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in task metrics index template creation: {response.text}')
+    index_template('spark_task_metrics', 'CREATE', resource_path=task_template_path)
 
     # create the index template for spark stage agg metrics
-    logger.info(f'Reading stage agg metrics index template at {stage_agg_template_path}')
-    with open(stage_agg_template_path) as file_:
-        content = file_.read()
-    payload = json.loads(content)
-    path = "_index_template/spark_stage_agg_metrics"
+    index_template('spark_stage_agg_metrics', 'CREATE', resource_path=stage_agg_template_path)
 
-    response = send_to_es('PUT', path, payload)
-
+    # create the opensearch dashboards saved objects
+    logger.info(f'Creating saved objects at {data_skew_path}')
+    response = os_resource(action='POST_FILE', os_path="_dashboards/api/saved_objects/_import?overwrite=true", resource_path=data_skew_path, headers={'osd-xsrf': 'true'})
     if not response.ok:
-        raise Exception(f'Error {response.status_code} in stage agg metrics index template creation: {response.text}')
+        raise Exception(f'Error {response.status_code} in saved objects creation: {response.text}')
+    resources = response.json()['successResults']
+    for r in resources:
+        if 'meta' in r:
+            del r['meta']
+        if 'overwrite' in r:
+            del r['overwrite']
+    return {    
+        'Data': resources
+    }
 
 
 def on_update(event: json):
     physical_id = event["PhysicalResourceId"]
     props = event["ResourceProperties"]
     logger.info("update resource %s with props %s" % (physical_id, props))
-    # ...
+    return on_create(event)
 
 
 def on_delete(event: json):
@@ -206,44 +257,33 @@ def on_delete(event: json):
 
     # delete role for pipeline
     path = '_opendistro/_security/api/roles/pipeline_role'
-    response = send_to_es('DELETE', path)
+    response = send_to_os('DELETE', path)
     if not response.ok:
         raise Exception(f'Error {response.status_code} in deleting the pipeline role: {response.text}')
 
     # delete the role mapping for pipeline
     path = '_opendistro/_security/api/rolesmapping/pipeline_role'
-    response = send_to_es('DELETE', path)
+    response = send_to_os('DELETE', path)
     if not response.ok:
         raise Exception(f'Error {response.status_code} in deleting the pipeline role mapping: {response.text}')
 
     # delete the user for dashboard
-    secret = get_secret(user_secret_arn)
-    path = f"_plugins/_security/api/internalusers/{secret['username']}"
-    response = send_to_es('DELETE', path)
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in deleting the dashboard user: {response.text}')
+    user('DELETE', secret_arn=admin_secret_arn)
 
-    # delete the admin for dashboard
-    secret = get_secret(admin_secret_arn)
-    path = f"_plugins/_security/api/internalusers/{secret['username']}"
-    response = send_to_es('DELETE', path)
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in deleting the admin user: {response.text}')
+    # delete the readonly user for dashboard
+    user('DELETE', secret_arn=user_secret_arn)
 
     # delete index template for spark logs
-    path = "_index_template/spark_logs"
-    response = send_to_es('DELETE', path)
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in deleting the template for logs: {response.text}')
+    index_template('spark_logs', 'DELETE')
 
-    # delete index template for spark task metrics
-    path = "_index_template/spark_task_metrics"
-    response = send_to_es('DELETE', path)
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in deleting the template for task metrics: {response.text}')
+    # delete the index template for spark task metrics
+    index_template('spark_task_metrics', 'DELETE')
 
-    # delete index template for spark stage agg metrics
-    path = "_index_template/spark_stage_agg_metrics"
-    response = send_to_es('DELETE', path)
-    if not response.ok:
-        raise Exception(f'Error {response.status_code} in deleting the template for stage agg metrics: {response.text}')
+    # delete the index template for spark stage agg metrics
+    index_template('spark_stage_agg_metrics', 'DELETE')
+
+    # delete the data skew dashboard
+    logger.info(f'Deleting saved objects')
+    resources = event['Data']
+    for r in resources:
+        response = saved_objects(name='nested', action='DELETE', type=r['type'], id=r['id'])

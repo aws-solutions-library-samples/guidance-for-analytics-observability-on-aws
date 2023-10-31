@@ -9,10 +9,10 @@ It consists of a jar file that is added to the classpath of Spark applications. 
  * a Log4J custom appender that ships application logs in real-time to the backend. This provides correlated log data to complement the metrics for troubleshooting.
 
 The components of the solution (including the backend) are available as an AWS CDK application that can be easily deployed and adapted to your AWS Cloud configuration. 
-It consists of components like an Opensearch cluster for logs and metrics storage, an Opensearch Dashboard for visualization and an Opensearch Ingestion Pipeline for collecting logs and metrics in different AWS VPC.
+It consists of components like an Opensearch cluster for logs and metrics storage, Opensearch Dashboard for visualization and Opensearch Ingestion Pipeline for collecting logs and metrics in different AWS VPC.
 The solution provides out-of-the-box dashboards and alerts tuned for Spark troubleshooting.
 
-We utilize Spark's extensibility APIs like SparkListener and asynchronous Log4J appenderes to build an non-invasive monitoring solution that doesn't impact the performance of your Spark application.
+We utilize Spark's extensibility APIs like SparkListener and asynchronous Log4J appenders to build an non-invasive monitoring solution that doesn't impact the performance of your Spark application.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ We utilize Spark's extensibility APIs like SparkListener and asynchronous Log4J 
 
 ## Getting started
 
-Follow the instructions in the [infra](./infra/README.md) folder to deploy the different components of the solution
+Follow the instructions in the [infra](./infra/README.md) folder to deploy the different components of the solution via AWS CDK.
 
 ## Limitations
 

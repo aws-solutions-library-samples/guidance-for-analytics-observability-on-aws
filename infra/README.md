@@ -1,14 +1,14 @@
 
 # Spark Observability infrastucture
 
-The Spark Observability infrastructure is the component responsible for ingesting, processing, 
+The Spark Observability infrastructure regroups the components responsible for ingesting, processing, 
 storing and analyzing Spark logs and metrics collected via the [Spark Observability collector](../collector).
 
-It's an AWS CDK based application that can deploy different stacks based on your need:
+It's based on an AWS CDK based application that can deploy different stacks based on your need:
  * The backend stack provides an Opensearch based backend infrastructure to centrally store and analyze the logs and metrics. 
    The backend is optional, you can use your own Opensearch domain.
  * The ingestor stack provides 2 Opensearch Ingestion pipelines to ingest logs and metrics from the Spark applications. 
-   The ingestor is deployed closed to your Spark applications (same subnet). You need one ingestor per subnet where you have Spark applications.
+   The ingestor is deployed next to your Spark applications (same subnet). You need one ingestor per subnet where you have Spark applications.
  * The EMR Serverless example stack provides an EMR Serverless application that runs the TPC-DS 3TB benchmark and send logs and metrics to the ingestor stack.
  * The VPC stack provides a simple VPC that can be used to deploy the ingestor stack and the EMR Serverless example.
 
@@ -19,6 +19,8 @@ The recommended order of deployment is:
 4. The EMR Serverless example
 
 ## Getting started
+
+Be sure you are in the `infra` folder.
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
@@ -31,14 +33,14 @@ package.
 To manually create a virtualenv on MacOS and Linux:
 
 ```
-$ python3 -m venv .venv
+python3 -m venv .venv
 ```
 
 After the init process completes and the virtualenv is created, you can use the following
 step to activate your virtualenv.
 
 ```
-$ source .venv/bin/activate
+source .venv/bin/activate
 ```
 
 If you are a Windows platform, you would activate the virtualenv like this:
@@ -50,7 +52,7 @@ If you are a Windows platform, you would activate the virtualenv like this:
 Once the virtualenv is activated, you can install the required dependencies.
 
 ```
-$ pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 At this point you can now deploy stacks.
@@ -67,11 +69,17 @@ cdk deploy -c Stack=example ...
 
 The backend stack provides the following components:
  * A private Amazon Opensearch domain with Fine Grained Access Control enabled and internal database users
+ * A Amazon VPC with 3 public and 3 private subnets, one per AZ, if no VPC is provided
  * An Amazon IAM Role with administrator privileges on the domain
  * An ingestion role with write permissions on logs and metrics indices in the Opensearch domain and used by the pipelines
  * User/password secrets in AWS Secret Manager for Opensearch Dashboards user and administrator
  * An Amazon KMS Key to encrypt the data in the Opensearch domain
  * An Amazon Cloudwatch Log Group to store logs from the Opensearch domain
+ * A custom resource based on AWS Lambda to configure the Opensearch domain:
+    * Configure the user and roles
+    * Create the index mappings
+    * Create the index templates  
+    * Load the pre-defined dashboards
 
 #### CDK context Parameters
  * `TshirtSize`: [REQUIRED] define the size of the Opensearch domain to deploy. Possible options are XS, S, M, L, XL.
@@ -83,7 +91,7 @@ The backend stack provides the following components:
    If not provided, the stack will use one public subnet. 
    
 ```bash
-cdk deploy -c TshirtSize=XS -c VpcID=<MY_VPC_ID> -c OpensearchSubnetsIDs=<SUBNET_ID1>,<SUBNET_ID2> -c ReverseProxySubnetID=<SUBNET_ID3>
+cdk deploy -c Stack=backend -c TshirtSize=XS -c VpcID=<MY_VPC_ID> -c OpensearchSubnetsIDs=<SUBNET_ID1>,<SUBNET_ID2> -c ReverseProxySubnetID=<SUBNET_ID3>
 ```
 
 The CDK application outputs all the required information to use the backend:
@@ -133,6 +141,8 @@ Here is the different configurations of the Opensearch domain based on the selec
 
 ## VPC stack
 
+This stack is only helpful when deploying the example. It provides a VPC that can be used to deploy the `ingestor` stack and the `example` stack.
+
 The VPC stack provides the following components:
  * A VPC deployed within 1 availability zone
  * 1 public and 1 private subnet
@@ -141,11 +151,8 @@ The VPC stack provides the following components:
 ## Ingestor stack
 
 The ingestor stack provides the following components:
- * Two public Opensearch Ingestion pipelines for ingesting logs and metrics respectively into an Opensearch domain
- * A custom resource based on AWS Lambda to configure the Opensearch domain:
-    * Configure the user and roles
-    * Create the index mappings
-    * Load the pre-defined dashboards
+ * Two Opensearch Ingestion pipelines for ingesting logs and metrics respectively into an Opensearch domain
+ * Two CloudWatch LogGroups for storing pipelines logs
  * An IAM policy to attach to the Spark job execution role with permissions to send logs and metrics to the Opensearch Ingestion pipelines
 
 #### CDK context Parameters
@@ -213,7 +220,7 @@ The CDK application provisions the following components:
 * An AWS Step Function to trigger the EMR Serverless job and wait for completion
 * An Amazon Event Bridge rule to trigger the job every 2 hours (disabled by default)
 
-The job takes approximately 30 minutes to run and there is no overhead from the Spark Observability collector.
+The job takes approximately 30 minutes to run. Using the Spark Observability collector has no overhead on the job execution time.
 
 #### Pre-requisites
 

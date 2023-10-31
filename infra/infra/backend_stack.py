@@ -8,7 +8,7 @@ from pathlib import Path
 from aws_cdk import (
     Stack, RemovalPolicy, CfnOutput, CfnTag, Fn, Duration, CustomResource, )
 from aws_cdk.aws_autoscaling import CfnLaunchConfiguration, CfnAutoScalingGroup
-from aws_cdk.aws_ec2 import Vpc, SubnetType, SubnetSelection, SecurityGroup, Port, Peer
+from aws_cdk.aws_ec2 import Vpc, SubnetType, SubnetSelection, SecurityGroup, Port, Peer, Subnet
 from aws_cdk.aws_iam import InstanceProfile, CfnServiceLinkedRole, ManagedPolicy, PolicyStatement, ServicePrincipal, \
     Role, PolicyDocument
 from aws_cdk.aws_kms import Key
@@ -118,7 +118,7 @@ class BackendStack(Stack):
                 subnets=vpc.select_subnets(one_per_az=True, subnet_type=SubnetType.PRIVATE_WITH_EGRESS).subnets[
                         :az_count])
         else:
-            os_subnets = SubnetSelection(subnets_ids=os_subnets_ids_param.split(',', az_count))
+            os_subnets = SubnetSelection(subnets=list(map(lambda s: Subnet.from_subnet_id(self, s, subnet_id=s), os_subnets_ids_param.split(',', az_count))))
 
         # Get the Public Subnet for the Reverse Proxy from parameters or takes a public one from the VPC.
         rp_subnet_id_param = scope.node.try_get_context("ReverseProxySubnetID")
@@ -126,7 +126,7 @@ class BackendStack(Stack):
             rp_subnet = SubnetSelection(
                 subnets=vpc.select_subnets(subnet_type=SubnetType.PUBLIC).subnets[:1])
         else:
-            rp_subnet = SubnetSelection(subnets_ids=[rp_subnet_id_param])
+            rp_subnet = SubnetSelection(subnets=[Subnet.from_subnet_id(self, 'RpSubnet', subnet_id=rp_subnet_id_param)])
 
         domain_security_group = SecurityGroup(
             self, "DomainSecurityGroup",
@@ -206,28 +206,6 @@ class BackendStack(Stack):
                                kms_key_id=key.key_id
                            ),
                            engine_version="OpenSearch_2.7",
-                           # log_publishing_options={
-                           #     "INDEX_SLOW_LOGS": CfnDomain.LogPublishingOptionProperty(
-                           #         cloud_watch_logs_log_group_arn=log_group.log_group_arn,
-                           #         enabled=True
-                           #     ),
-                           #     "SEARCH_SLOW_LOGS": CfnDomain.LogPublishingOptionProperty(
-                           #         cloud_watch_logs_log_group_arn=log_group.log_group_arn,
-                           #         enabled=True
-                           #     ),
-                           #     "AUDIT_LOGS": CfnDomain.LogPublishingOptionProperty(
-                           #         cloud_watch_logs_log_group_arn=log_group.log_group_arn,
-                           #         enabled=True
-                           #     ),
-                           #     "ES_APPLICATION_LOGS": CfnDomain.LogPublishingOptionProperty(
-                           #         cloud_watch_logs_log_group_arn=log_group.log_group_arn,
-                           #         enabled=True
-                           #     ),
-                           #     "TASK_DETAILS_LOGS": CfnDomain.LogPublishingOptionProperty(
-                           #         cloud_watch_logs_log_group_arn=log_group.log_group_arn,
-                           #         enabled=True
-                           #     )
-                           # },
                            node_to_node_encryption_options=CfnDomain.NodeToNodeEncryptionOptionsProperty(
                                enabled=True
                            ),
