@@ -4,23 +4,27 @@ Introducing AWS Spark Observability - An open source observability solution for 
 
 AWS Spark Observability provides real-time visibility into Spark application performance to detect and troubleshoot common challenges like task skew, GC pressure, shuffle read/write bottlenecks, speculative tasks, etc.
 
-It consists of a jar file that is added to the classpath of Spark applications. This jar contains:
+The solution is based on a collector component to be loaded into your Apache Spark application and a backend component based on Amazon Opensearch Service. It provides out-of-the-box dashboards and alerts tuned for Spark troubleshooting.
+
+![architecture](./static/spark-obs.png)
+
+The collector component is a jar file that is added to the classpath of Spark applications. 
+It's a Scala based component available as a jar file that is compatible with any Apache Spark 3.3.0 runtime as long as the Jar file is on the classpath. it contains:
  * a custom SparkListener that collects metrics like task runtime, GC time, shuffle read/write metrics, etc. The metrics are aggregated and sent to a backend for storage and analysis.
  * a Log4J custom appender that ships application logs in real-time to the backend. This provides correlated log data to complement the metrics for troubleshooting.
+We utilize Spark's extensibility APIs including `SparkListener` and asynchronous Log4J appenders to build an non-invasive monitoring solution that doesn't impact the performance of your Spark application.
 
-The components of the solution (including the backend) are available as an AWS CDK application that can be easily deployed and adapted to your AWS Cloud configuration. 
-It consists of components like an Opensearch cluster for logs and metrics storage, Opensearch Dashboard for visualization and Opensearch Ingestion Pipeline for collecting logs and metrics in different AWS VPC.
-The solution provides out-of-the-box dashboards and alerts tuned for Spark troubleshooting.
+The backend components is an AWS CDK application that can be easily deployed and adapted to your AWS Cloud configuration:
+ * The backend stack provides an Opensearch based backend infrastructure to centrally store and analyze the logs and metrics. 
+   The backend is optional, you can use your own Opensearch domain.
+ * The ingestor stack provides 2 Opensearch Ingestion pipelines to ingest logs and metrics from the Spark applications. 
+   The ingestor is deployed next to your Spark applications (same subnet). You need one ingestor per subnet where you have Spark applications.
+ * The EMR Serverless example stack provides an EMR Serverless application that runs the TPC-DS 3TB benchmark and send logs and metrics to the ingestor stack.
+ * The VPC stack provides a simple VPC that can be used to deploy the ingestor stack and the EMR Serverless example.
 
-We utilize Spark's extensibility APIs like SparkListener and asynchronous Log4J appenders to build an non-invasive monitoring solution that doesn't impact the performance of your Spark application.
+## Documentation
 
-## Architecture
-
-![AWS Spark Observability architecture](./static/spark-observability.png)
-
-## Getting started
-
-Follow the instructions in the [infra](./infra/README.md) folder to deploy the different components of the solution via AWS CDK.
+Learn how to deploy the solution by following these [instructions](./GETTING-STARTED.md).
 
 ## Limitations
 
