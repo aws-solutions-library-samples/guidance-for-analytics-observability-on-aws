@@ -1,14 +1,13 @@
 # Getting started
 
-![AWS Spark Observability architecture](./static/spark-observability.png)
-
 The recommended order of deployment is:
-2. Deploy the CDK stacks that fits your need:
+
+1. Deploy the CDK stacks that fits your need:
    1. The backend (OPTIONAL). Alternatively you can provide your own Amazon Opensearch Domain.
    2. A generic VPC (OPTIONAL). Alternatively you can provide your own VPC. This is where deploy your Spark application.
    3. The ingestor (REQUIRED). It should be deployed in the same VPC and subnets as your Spark application.
    4. Deploy the EMR Serverless example (OPTIONAL). Alternatively configure your Spark application with the collector that you built and run it.
-3. Analyze data in Opensearch Dashboards
+2. Analyze data in Opensearch Dashboards
 
 
 ## Pre-requisite
