@@ -6,8 +6,8 @@
         <AppenderRef ref="Sparkobs"/>
     </Async>
     <SparkObs name="Sparkobs"
-              endpoint="<OPENSEARCH_INGESTION_ENDPOINT>"
-              region="<OPENSEARCH_INGESTION_REGION>" batchSize="200" timeThreshold="10"/>
+              endpoint="<LOGS_PIPELINE_URL>"
+              region="<LOGS_PIPELINE_REGION>" batchSize="200" timeThreshold="10"/>
 </Appenders>
 <Loggers>
     <Root level="info">

@@ -14,7 +14,7 @@ pipeline:
         with_keys: ["threadId","threadName","threadPriority"]
     - grok:
         match:
-          contextData/map/mdc.taskName: ['task %{NUMBER:taskId} in stage %{NUMBER:stageId} \(TID %{NUMBER:tid}\)']
+          contextData/map/mdc.taskName: ['task %{{NUMBER:taskId}} in stage %{{NUMBER:stageId}} \(TID %{{NUMBER:tid}}\)']
   sink:
     - opensearch:
         hosts: [ "https://{domain_url}" ]
