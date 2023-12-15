@@ -262,7 +262,7 @@ The job takes approximately 30 minutes to run.
       ```
     * Copy the jar file
       ```
-      cp <ROOT>/collector/target/scala-2.12/spark-observability-collector-assembly.jar <ROOT>/infra/emr-serverless/docker
+      cp <ROOT>/collector/target/scala-2.12/spark-observability-collector-assembly.jar <ROOT>/infra/docker
       ```
 
 #### CDK context Parameters

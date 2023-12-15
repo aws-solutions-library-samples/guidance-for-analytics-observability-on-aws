@@ -240,7 +240,9 @@ def on_create(event: json):
         if 'overwrite' in r:
             del r['overwrite']
     return {    
-        'Data': resources
+        'Data': {
+            'Resources': resources
+        }
     }
 
 
@@ -284,6 +286,6 @@ def on_delete(event: json):
 
     # delete the data skew dashboard
     logger.info(f'Deleting saved objects')
-    resources = event['Data']
+    resources = event['Data']['Resources']
     for r in resources:
         response = saved_objects(name='nested', action='DELETE', type=r['type'], id=r['id'])

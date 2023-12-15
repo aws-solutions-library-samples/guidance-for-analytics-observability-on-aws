@@ -7,5 +7,6 @@ collector/project/project
 collector/project/target
 infra/infra/resources/lambda/layer
 infra/cdk.context.json
+infra/docker/log4j2\ copy.xml
 *.DS_Store
 **/*.iml
