@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="info" name="spark-observability" packages="com.amazonaws.sparkobservability">
+<Appenders>
+    <Console name="Console"/>
+    <Async name="Async">
+        <AppenderRef ref="Sparkobs"/>
+    </Async>
+    <SparkObs name="Sparkobs"
+              endpoint="<LOGS_PIPELINE_URL>"
+              region="<LOGS_PIPELINE_REGION>" batchSize="200" timeThreshold="10"/>
+</Appenders>
+<Loggers>
+    <Root level="info">
+        <AppenderRef ref="Console"/>
+        <AppenderRef ref="Async"/>
+    </Root>
+    <Logger name="org.apache.spark.repl.Main" level="warn"/>
+    <Logger name="org.apache.spark.sql.hive.thriftserver.SparkSQLCLIDriver" level="warn"/>
+    <Logger name="org.sparkproject.jetty" level="warn"/>
+    <Logger name="org.sparkproject.jetty.util.component.AbstractLifeCycle" level="error"/>
+    <Logger name="org.apache.spark.repl.SparkIMain$exprTyper" level="info"/>
+    <Logger name="org.apache.spark.repl.SparkILoop$SparkILoopInterpreter" level="info"/>
+    <Logger name="org.apache.parquet" level="error"/>
+    <Logger name="parquet" level="error"/>
+    <Logger name="org.apache.hudi" level="warn"/>
+    <Logger name="org.apache.hadoop.hive.metastore.RetryingHMSHandler" level="fatal"/>
+    <Logger name="org.apache.hadoop.hive.ql.exec.FunctionRegistry" level="error"/>
+</Loggers>
+</Configuration>

@@ -1,0 +1,335 @@
+{
+  "index_patterns": [
+    "spark-logs*"
+  ],
+  "template": {
+    "aliases" : { },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
+        },
+        "appId" : {
+          "type" : "keyword"
+        },
+        "appName" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "contextData" : {
+          "properties" : {
+            "immutable" : {
+              "type" : "boolean"
+            },
+            "map" : {
+              "properties" : {
+                "mdc" : {
+                  "properties" : {
+                    "taskName" : {
+                      "type" : "text",
+                      "fields" : {
+                        "keyword" : {
+                          "type" : "keyword",
+                          "ignore_above" : 256
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "threshold" : {
+              "type" : "long"
+            }
+          }
+        },
+        "endOfBatch" : {
+          "type" : "boolean"
+        },
+        "executorId" : {
+          "type" : "keyword"
+        },
+        "fqcn" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "includeLocation" : {
+          "type" : "boolean"
+        },
+        "instant" : {
+          "properties" : {
+            "epochSecond" : {
+              "type" : "long"
+            },
+            "nanoOfSecond" : {
+              "type" : "long"
+            }
+          }
+        },
+        "level" : {
+          "properties" : {
+            "intLevel" : {
+              "type" : "long"
+            },
+            "name" : {
+              "type" : "keyword"
+            },
+            "standardLevel" : {
+              "type" : "keyword"
+            }
+          }
+        },
+        "loggerName" : {
+          "type" : "keyword"
+        },
+        "message" : {
+          "properties" : {
+            "message" : {
+              "type" : "text"
+            }
+          }
+        },
+        "nanoTime" : {
+          "type" : "long"
+        },
+        "parameterCount" : {
+          "type" : "long"
+        },
+        "populated" : {
+          "type" : "boolean"
+        },
+        "threadId" : {
+          "type" : "long"
+        },
+        "threadName" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "threadPriority" : {
+          "type" : "long"
+        },
+        "thrownProxy" : {
+          "properties" : {
+            "causeProxy" : {
+              "properties" : {
+                "commonElementCount" : {
+                  "type" : "long"
+                },
+                "extendedStackTrace" : {
+                  "properties" : {
+                    "extraClassInfo" : {
+                      "properties" : {
+                        "exact" : {
+                          "type" : "boolean"
+                        },
+                        "location" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        },
+                        "version" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "stackTraceElement" : {
+                      "properties" : {
+                        "classLoaderName" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        },
+                        "declaringClass" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        },
+                        "fileName" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        },
+                        "format" : {
+                          "type" : "long"
+                        },
+                        "lineNumber" : {
+                          "type" : "long"
+                        },
+                        "methodName" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        },
+                        "moduleName" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        },
+                        "moduleVersion" : {
+                          "type" : "text",
+                          "fields" : {
+                            "keyword" : {
+                              "type" : "keyword",
+                              "ignore_above" : 256
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "name" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                }
+              }
+            },
+            "commonElementCount" : {
+              "type" : "long"
+            },
+            "extendedStackTrace" : {
+              "properties" : {
+                "extraClassInfo" : {
+                  "properties" : {
+                    "exact" : {
+                      "type" : "boolean"
+                    },
+                    "location" : {
+                      "type" : "text",
+                      "fields" : {
+                        "keyword" : {
+                          "type" : "keyword",
+                          "ignore_above" : 256
+                        }
+                      }
+                    },
+                    "version" : {
+                      "type" : "keyword"
+                    }
+                  }
+                },
+                "stackTraceElement" : {
+                  "properties" : {
+                    "classLoaderName" : {
+                      "type" : "text",
+                      "fields" : {
+                        "keyword" : {
+                          "type" : "keyword",
+                          "ignore_above" : 256
+                        }
+                      }
+                    },
+                    "declaringClass" : {
+                      "type" : "text",
+                      "fields" : {
+                        "keyword" : {
+                          "type" : "keyword",
+                          "ignore_above" : 256
+                        }
+                      }
+                    },
+                    "fileName" : {
+                      "type" : "keyword"
+                    },
+                    "format" : {
+                      "type" : "long"
+                    },
+                    "lineNumber" : {
+                      "type" : "long"
+                    },
+                    "methodName" : {
+                      "type" : "text",
+                      "fields" : {
+                        "keyword" : {
+                          "type" : "keyword",
+                          "ignore_above" : 256
+                        }
+                      }
+                    },
+                    "moduleName" : {
+                      "type" : "text",
+                      "fields" : {
+                        "keyword" : {
+                          "type" : "keyword",
+                          "ignore_above" : 256
+                        }
+                      }
+                    },
+                    "moduleVersion" : {
+                      "type" : "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "localizedMessage" : {
+              "type" : "text"
+            },
+            "message" : {
+              "type" : "text"
+            },
+            "name" : {
+              "type" : "keyword"
+            }
+          }
+        }
+      }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "number_of_replicas" : "1"
+      }
+    }
+  }
+}

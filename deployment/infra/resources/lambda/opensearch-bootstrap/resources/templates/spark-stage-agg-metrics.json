@@ -1,0 +1,54 @@
+{
+  "index_patterns": [
+    "spark-stage-agg-metrics*"
+  ],
+  "template": {
+    "aliases" : { },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
+        },
+        "appId" : {
+          "type" : "keyword"
+        },
+        "appName" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "inputBytesReadSkewness" : {
+          "type" : "double"
+        },
+        "jobId" : {
+          "type" : "keyword"
+        },
+        "maxInputBytesRead" : {
+          "type" : "long"
+        },
+        "maxShuffleBytesRead" : {
+          "type" : "long"
+        },
+        "metricsType" : {
+          "enabled" : false
+        },
+        "shuffleBytesReadSkewness" : {
+          "type" : "double"
+        },
+        "stageId" : {
+          "type" : "long"
+        }
+      }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "number_of_replicas" : "1"
+      }
+    }
+  }
+}
