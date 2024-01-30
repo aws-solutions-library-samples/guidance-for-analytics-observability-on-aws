@@ -28,6 +28,9 @@ services:
       - "9200"
     networks:
       - opensearch-net
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:latest
     container_name: opensearch-dashboards
@@ -40,6 +43,9 @@ services:
       - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
     networks:
       - opensearch-net
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
   data-prepper:
     image: opensearchproject/data-prepper:latest
     container_name: data-prepper
@@ -53,6 +59,9 @@ services:
       - ${PWD}/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
     networks:
       - opensearch-net
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
   spark:
     image: d34a2486df0b
     container_name: spark
@@ -62,5 +71,8 @@ services:
       - "4040"
     networks:
       - opensearch-net
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
 networks:
   opensearch-net:

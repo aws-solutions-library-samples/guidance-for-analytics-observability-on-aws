@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 # Dockerfile
-FROM public.ecr.aws/emr-serverless/spark/emr-6.9.0:latest
+FROM public.ecr.aws/emr-serverless/spark/emr-6.9.0:20230906
 
 USER root
 
