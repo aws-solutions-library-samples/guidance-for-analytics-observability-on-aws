@@ -1,0 +1,5 @@
+boto3~=1.26.85
+requests~=2.24.0
+requests_aws4auth
+jinja2
+opensearch-py~=2.1.1

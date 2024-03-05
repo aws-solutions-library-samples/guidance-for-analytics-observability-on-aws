@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 dev-pipeline:
+  delay: 1000
   source:
     http:
       path: "/ingest"
@@ -9,6 +10,11 @@ dev-pipeline:
     - date:
         from_time_received: true
         destination: "@timestamp"
+    - delete_entries:
+        with_keys: ["threadId","threadName","threadPriority"]
+    - grok:
+        match:
+          contextData/map/mdc.taskName: ['task %{NUMBER:taskId} in stage %{NUMBER:stageId} \(TID %{NUMBER:tid}\)']
 #  route:
 #    - task-metrics: '/metricsType == "taskMetrics"'
 #    - stage-agg-metrics: '/metricsType == "stageAggMetrics"'
@@ -29,3 +35,5 @@ dev-pipeline:
         hosts: [ "http://opensearch-node1:9200" ]
         index: spark-logs
         insecure: true
+    # - file:
+    #     path: /usr/share/data-prepper/logs/log.out

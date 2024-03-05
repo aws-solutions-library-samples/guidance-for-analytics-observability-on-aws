@@ -9,3 +9,4 @@ __pycache__
 .cdk.staging
 cdk.out
 docker/spark-observability-collector-assembly*.jar
+dev/spark-observability-collector-assembly*.jar

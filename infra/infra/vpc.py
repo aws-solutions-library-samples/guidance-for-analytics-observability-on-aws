@@ -1,8 +1,9 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-from aws_cdk import Stack, CfnOutput
+from aws_cdk import Aspects, Stack, CfnOutput
 from aws_cdk.aws_ec2 import Vpc
+from cdk_nag import AwsSolutionsChecks, NagSuppressions
 from constructs import Construct
 
 
@@ -20,3 +21,8 @@ class VpcStack(Stack):
                   description='VPC ID for the EMR Serverless example',
                   value=vpc.vpc_id,
                   )
+
+        Aspects.of(self).add(AwsSolutionsChecks())
+        NagSuppressions.add_resource_suppressions_by_path(stack=self, path='/VpcStack/Vpc/Resource', suppressions=[
+            {"id": "AwsSolutions-VPC7", "reason": "VPC is provided only for testing"},
+        ])

@@ -10,3 +10,4 @@ infra/cdk.context.json
 infra/docker/log4j2\ copy.xml
 *.DS_Store
 **/*.iml
+.devcontainer/*

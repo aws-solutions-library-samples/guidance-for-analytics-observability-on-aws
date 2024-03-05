@@ -231,7 +231,11 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, b
         if (logContextInitialized()) {
           jsonObject.addProperty("appName", appName)
           jsonObject.addProperty("appId", appId)
-          jsonObject.addProperty("executorId", executorId)
+          if (event.isInstanceOf[CustomTaskMetrics]) {
+            jsonObject.addProperty("executorId", event.asInstanceOf[CustomTaskMetrics].executorId)
+          } else {
+            jsonObject.addProperty("executorId", executorId)
+          }
         }
         else {
           initLogContext()
