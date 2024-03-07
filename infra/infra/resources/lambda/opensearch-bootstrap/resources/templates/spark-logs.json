@@ -123,6 +123,9 @@
         "threadPriority" : {
           "type" : "long"
         },
+        "logTime": {
+          "type" : "date"
+        },
         "thrownProxy" : {
           "properties" : {
             "causeProxy" : {

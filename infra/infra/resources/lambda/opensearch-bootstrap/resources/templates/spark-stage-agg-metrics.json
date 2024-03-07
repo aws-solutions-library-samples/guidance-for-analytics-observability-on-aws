@@ -41,6 +41,9 @@
         },
         "stageId" : {
           "type" : "long"
+        },
+        "metricTime": {
+          "type": "date"
         }
       }
     },

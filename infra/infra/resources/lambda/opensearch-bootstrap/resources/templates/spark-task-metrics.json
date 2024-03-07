@@ -74,6 +74,9 @@
           },
           "taskId" : {
             "type" : "keyword"
+          },
+          "metricTime": {
+            "type": "date"
           }
         }
       },
