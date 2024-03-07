@@ -6,15 +6,15 @@ dev-pipeline:
   source:
     http:
       path: "/ingest"
-  processor:
-    - date:
-        from_time_received: true
-        destination: "@timestamp"
-    - delete_entries:
-        with_keys: ["threadId","threadName","threadPriority"]
-    - grok:
-        match:
-          contextData/map/mdc.taskName: ['task %{NUMBER:taskId} in stage %{NUMBER:stageId} \(TID %{NUMBER:tid}\)']
+  # processor:
+    # - date:
+    #     from_time_received: true
+    #     destination: "@timestamp"
+    # - delete_entries:
+    #     with_keys: ["threadId","threadName","threadPriority"]
+    # - grok:
+    #     match:
+    #       contextData/map/mdc.taskName: ['task %{NUMBER:taskId} in stage %{NUMBER:stageId} \(TID %{NUMBER:tid}\)']
 #  route:
 #    - task-metrics: '/metricsType == "taskMetrics"'
 #    - stage-agg-metrics: '/metricsType == "stageAggMetrics"'

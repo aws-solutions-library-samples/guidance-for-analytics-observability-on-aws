@@ -11,3 +11,6 @@ infra/docker/log4j2\ copy.xml
 *.DS_Store
 **/*.iml
 .devcontainer/*
+.metals
+collector/.bloop
+collector/project/.bloop

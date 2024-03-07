@@ -17,6 +17,8 @@ import java.net.URI
 import java.time.{Duration, Instant}
 import scala.collection.mutable.ListBuffer
 import scala.util.{Failure, Success, Try}
+import org.apache.logging.log4j.core.LogEvent
+import scala.util.matching.Regex
 
 /**
  * Contains static variables used by ObservabilityClient objects
@@ -121,6 +123,12 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, b
    * Spark context metadata used to enrich logs
    */
   private var executorId : String = ObservabilityClient.UNDEFINED_CONST
+
+  /**
+   * The regex patterns to extract task and stage IDs from the MDC taskName
+   */
+  private val taskPattern = new Regex("""task (\d+\.\d+)""")
+  private val stagePattern = new Regex("""stage (\d+\.\d+)""")
 
   /**
    * Set the last flush time to an Instant. Used to initialize the batching process after Spark application has started.
@@ -243,6 +251,16 @@ class ObservabilityClient[A](endpoint: String, region: String, batchSize: Int, b
             flushEvents()
           }
           return
+        }
+        if (event.isInstanceOf[LogEvent]) {
+          val logEvent = event.asInstanceOf[LogEvent]
+          jsonObject.addProperty("logTime", logEvent.getTimeMillis)
+
+          val taskName = logEvent.getContextData.getValue[String]("mdc.taskName")
+          val taskId = Try(taskName.split(" ")(1)).getOrElse("")
+          val stageId = Try(taskName.split(' ')(4)).getOrElse("")
+          jsonObject.addProperty("taskId", taskId)
+          jsonObject.addProperty("stageId", stageId)
         }
       jsonObject.toString
     }.reduceOption((x, y) => x + "," + y)

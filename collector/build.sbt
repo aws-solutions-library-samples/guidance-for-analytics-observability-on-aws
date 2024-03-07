@@ -17,6 +17,7 @@ libraryDependencies ++= {
     "software.amazon.awssdk" % "auth" % "2.20.38",
     "com.google.code.gson" % "gson" % "2.10.1",
     "com.lmax" % "disruptor" % "3.3.4",
+    "com.github.nscala-time" %% "nscala-time" % "2.32.0",
     "org.scalatest" %% "scalatest" % "3.2.15" % "test",
     "org.scalatestplus" %% "mockito-4-6" % "3.2.15.0" % "test"
   )
