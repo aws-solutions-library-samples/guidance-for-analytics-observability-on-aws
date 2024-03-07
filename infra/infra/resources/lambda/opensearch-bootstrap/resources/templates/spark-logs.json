@@ -6,9 +6,6 @@
     "aliases" : { },
     "mappings" : {
       "properties" : {
-        "@timestamp" : {
-          "type" : "date"
-        },
         "appId" : {
           "type" : "keyword"
         },
