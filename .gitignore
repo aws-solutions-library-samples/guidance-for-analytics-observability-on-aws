@@ -18,6 +18,7 @@ deployment/package-lock.json
 # CDK asset staging directory
 deployment/.cdk.staging
 deployment/cdk.out
+deployment/cdk.context.json
 deployment/docker/spark-observability-collector-assembly*.jar
 deployment/dev/spark-observability-collector-assembly*.jar
 
