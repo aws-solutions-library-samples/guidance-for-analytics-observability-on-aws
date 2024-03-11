@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 
 import java.time.Instant
 import scala.collection.mutable.{HashMap, ListBuffer}
+import org.joda.time.DateTime
 
 /**
  * A custom Spark listener to collect metrics and send to an observability client.
@@ -87,6 +88,7 @@ class CustomMetricsListener extends SparkListener {
    */
   override def onTaskEnd(taskEnded: SparkListenerTaskEnd){
     val metrics = collectTaskCustomMetrics(taskEnded)
+    
     client.add(metrics)
     logger.debug(s"Task metrics collected: ${metrics}")
     taskMetricsBuffer += CustomLightTaskMetrics(
@@ -96,7 +98,8 @@ class CustomMetricsListener extends SparkListener {
       metrics.stageId,
       metrics.taskId,
       metrics.inputBytesRead,
-      metrics.shuffleBytesRead
+      metrics.shuffleBytesRead,
+      DateTime.now().getMillis(),
     )
   }
 
@@ -125,7 +128,8 @@ class CustomMetricsListener extends SparkListener {
       shuffleRecordsRead = taskEnded.taskMetrics.shuffleReadMetrics.recordsRead,
       shuffleBytesRead = taskEnded.taskMetrics.shuffleReadMetrics.totalBytesRead,
       shuffleRecordsWritten = taskEnded.taskMetrics.shuffleWriteMetrics.recordsWritten,
-      shuffleBytesWritten = taskEnded.taskMetrics.shuffleWriteMetrics.bytesWritten
+      shuffleBytesWritten = taskEnded.taskMetrics.shuffleWriteMetrics.bytesWritten,
+      DateTime.now().getMillis(),
     )
   }
 
@@ -178,7 +182,8 @@ class CustomMetricsListener extends SparkListener {
       maxInputRelDistance,
       maxInputBytesRead,
       maxShuffleRelDistance,
-      maxShuffleBytesRead
+      maxShuffleBytesRead,
+      DateTime.now().getMillis(),
     )
   }
 }

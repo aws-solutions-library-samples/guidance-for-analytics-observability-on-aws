@@ -30,7 +30,7 @@ services:
       - opensearch-net
     security_opt:
       - no-new-privileges:true
-    read_only: true
+    read_only: false
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:latest
     container_name: opensearch-dashboards
@@ -45,7 +45,7 @@ services:
       - opensearch-net
     security_opt:
       - no-new-privileges:true
-    read_only: true
+    read_only: false
   data-prepper:
     image: opensearchproject/data-prepper:latest
     container_name: data-prepper
@@ -57,22 +57,11 @@ services:
       - "2021"
     volumes:
       - ${PWD}/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
+      - ${PWD}/logs:/usr/share/data-prepper/logs
     networks:
       - opensearch-net
     security_opt:
       - no-new-privileges:true
-    read_only: true
-  spark:
-    image: d34a2486df0b
-    container_name: spark
-    ports:
-      - 4040:4040
-    expose:
-      - "4040"
-    networks:
-      - opensearch-net
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
+    read_only: false
 networks:
   opensearch-net:
