@@ -6,10 +6,6 @@ pipeline:
   source:
     http:
       path: "/ingest"
-  processor:
-    - date:
-        from_time_received: true
-        destination: "@timestamp"
   route:
     - task-metrics: '/metricsType == "taskMetrics"'
     - stage-agg-metrics: '/metricsType == "stageAggMetrics"'

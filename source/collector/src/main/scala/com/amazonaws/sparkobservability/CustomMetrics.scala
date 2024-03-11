@@ -4,13 +4,14 @@
 package com.amazonaws.sparkobservability
 
 import scala.collection.JavaConverters._
+import org.joda.time.DateTime
 
 
 /**
  * Abstract class that serves as the base class for all custom metrics.
  */
 
-sealed abstract class CustomMetrics(val appName: String, val appId: String, val jobId: String, val metricsType: String) extends Product {
+sealed abstract class CustomMetrics(val appName: String, val appId: String, val jobId: String, val metricsType: String, val metricTime: Long) extends Product {
 
   /**
    * Convert the metric object into a map representation.
@@ -43,8 +44,9 @@ case class CustomTaskMetrics(
                             shuffleRecordsRead: Double,
                             shuffleBytesRead: Double,
                             shuffleRecordsWritten: Double,
-                            shuffleBytesWritten: Double
-                            ) extends CustomMetrics(appName, appId, jobId, metricsType="taskMetrics")
+                            shuffleBytesWritten: Double,
+                            override val metricTime: Long
+                            ) extends CustomMetrics(appName, appId, jobId, metricsType="taskMetrics", metricTime)
 
 /**
  * Case class that represents a subset of metrics extracted from Spark tasks and used to process metrics aggregation
@@ -56,8 +58,9 @@ case class CustomLightTaskMetrics(
                             stageId: Integer,
                             taskId: String,
                             inputBytesRead: Double,
-                            shuffleBytesRead: Double
-                            ) extends CustomMetrics(appName, appId, jobId, metricsType="lightTaskMetrics")
+                            shuffleBytesRead: Double,
+                            override val metricTime: Long
+                            ) extends CustomMetrics(appName, appId, jobId, metricsType="lightTaskMetrics", metricTime)
 
 /**
  * Case class that represents metrics aggregated from tasks at the stage level
@@ -70,5 +73,6 @@ case class CustomStageAggMetrics(
                              inputBytesReadSkewness: Double,
                              maxInputBytesRead: Double,
                              shuffleBytesReadSkewness: Double,
-                             maxShuffleBytesRead: Double
-                            ) extends CustomMetrics(appName, appId, jobId, metricsType="stageAggMetrics")
+                             maxShuffleBytesRead: Double,
+                            override val metricTime: Long
+                            ) extends CustomMetrics(appName, appId, jobId, metricsType="stageAggMetrics", metricTime)

@@ -1,0 +1,26 @@
+*.class
+*.log
+.bsp
+.idea
+*.DS_Store
+**/*.iml
+.devcontainer/*
+.metals
+
+
+deployment/*.swp
+deployment/package-lock.json
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/*.egg-info
+
+# CDK asset staging directory
+deployment/.cdk.staging
+deployment/cdk.out
+deployment/docker/spark-observability-collector-assembly*.jar
+deployment/dev/spark-observability-collector-assembly*.jar
+
+source/collector/project/target
+source/collector/target
+source/collector/project/project

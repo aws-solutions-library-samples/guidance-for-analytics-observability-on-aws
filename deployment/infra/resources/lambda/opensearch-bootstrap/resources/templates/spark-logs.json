@@ -6,9 +6,6 @@
     "aliases" : { },
     "mappings" : {
       "properties" : {
-        "@timestamp" : {
-          "type" : "date"
-        },
         "appId" : {
           "type" : "keyword"
         },
@@ -122,6 +119,9 @@
         },
         "threadPriority" : {
           "type" : "long"
+        },
+        "logTime": {
+          "type" : "date"
         },
         "thrownProxy" : {
           "properties" : {

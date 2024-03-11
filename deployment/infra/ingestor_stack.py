@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: MIT-0
 
 from aws_cdk import (
-    Stack, CfnOutput, Fn, RemovalPolicy, Names, UniqueResourceNameOptions,
+    Aspects, Stack, CfnOutput, Fn, RemovalPolicy, Names, UniqueResourceNameOptions,
 )
 from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, SecurityGroup, Peer, Port, SubnetFilter
 from aws_cdk.aws_iam import ManagedPolicy, PolicyStatement, ServicePrincipal
 from aws_cdk.aws_logs import LogGroup, RetentionDays
 from aws_cdk.aws_osis import CfnPipeline
 from constructs import Construct
+from cdk_nag import AwsSolutionsChecks, NagSuppressions
 
 
 class IngestorStack(Stack):
@@ -179,3 +180,9 @@ class IngestorStack(Stack):
                   description='Collector managed policy ARN to attach to the role used by the Spark job',
                   value=collector_policy.managed_policy_arn,
                   )
+
+        Aspects.of(self).add(AwsSolutionsChecks())
+
+        NagSuppressions.add_resource_suppressions_by_path(stack=self, path='/IngestorStack/PipelineSecurityGroup/Resource', suppressions=[
+            {"id": "AwsSolutions-EC23", "reason": "The ingestor source is not predictable when deploying the ingestor stack."},
+        ])

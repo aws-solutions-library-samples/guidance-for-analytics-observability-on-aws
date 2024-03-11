@@ -34,6 +34,13 @@ class CollectorAppender(name: String, endpoint: String, region: String, batchSiz
    * @param event The log event to be appended.
    */
   override def append(event: LogEvent): Unit = {
+
+    val taskId = Option(event.getContextData.getValue("taskId")).getOrElse("Unknown")
+    val stageId = Option(event.getContextData.getValue("stageId")).getOrElse("Unknown")
+    val threadId = Option(event.getContextData.getValue("threadId")).getOrElse("Unknown")
+    // Prepend stage and task info to the log message
+    val modifiedMessage = s"[Stage $stageId - Task $taskId - Thread $threadId] ${event.getMessage.getFormattedMessage}"
+    //print(modifiedMessage)
     client.add(event)
   }
 }

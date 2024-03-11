@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: MIT-0
 
 import os
+from aws_cdk import Aspects
 
 import aws_cdk as cdk
 
@@ -56,4 +57,5 @@ elif app.node.try_get_context('Stack') == 'example':
                        ))
 else:
     raise Exception("Stack parameter must be 'backend', 'vpc', 'ingestor' or 'example'")
+
 app.synth()
