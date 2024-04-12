@@ -34,6 +34,14 @@ The backend components is an AWS CDK application that can be easily deployed and
 
 <img src="./assets/architecture_diagram.png" alt="drawing" width="1500"/>
 
+Below is a description of the flow implemented within this guidance:
+1. The Observability connector for Amazon OpenSearch Service (Observability Connector) is packaged into Spark applications running through Amazon EMR, AWS Glue or self-hosted on Amazon EC2. The connector is a Java ARchive( JAR) file to put on the driver and executor classpath.
+2. The Observability Connector includes a custom log appender (Log4j Async Appender) and Custom Spark Listener. They collect logs and metrics from the application and push the data out through the Amazon OpenSearch client
+3. The Observability connector pushes the data into an Amazon OpenSearch Integration pipeline. The pipeline applies data transformation and also acts as an ingestion buffer into Amazon OpenSearch.
+4. Ingestion related Logs and metrics are stored into Amazon OpenSearch indexes one for each data type. The data delivery frequency is defined as part of the OpenSearch pipeline configuration. Logs and metrics data are encrypted using an AWS Key Management Service (KMS) Key
+5. Pre-Built Amazon OpenSearch Dashboards offers authenticated users insights into their data pipeline via aggregated views of performance metrics and logs at various levels of granularity e.g. Spark Application, Job run, Stage, Partition. The dashboard also provides performance scores calculated based on the collected metrics to allow for easier analysis.
+
+
 ## Cost
 _You are responsible for the cost of the AWS services used while running this Guidance. As of April 2024, the cost for running this Guidance with the default settings in the US East (Ohio) is approximately $929.26 per month for processing around 120 GB of logs and metrics per month. This equates to 2 TPCCDS becnhmark data ingestion jobs per business day, assuming 730 hours of OpenSearch cluster usage. Please note that our estimate does not include any assumptions in terms of dashboard usage. You are responsible for resizing the OpenSearch dashboard cluster according to your specific needs._
 
@@ -304,6 +312,10 @@ The job takes approximately 30 minutes to run.
 * `SubnetsIDs`: [OPTIONAL] the comma separated list of subnets IDs to deploy the EMR Serverless application.
   If no subnets IDs are provided, it will use all private subnets with one per AZ from the provided VPC.
 
+## Deployment validation
+
+Once the stack(s) you chose to deploy are completed, you can verify if the resources have been successfully created through the CloudFormation console.  
+Each stack name is prefixed with either `backend`, `vpc`, `ingestor` or `example`. You should also be able to view the OpenSearch cluster and ingestion pipelines from the OpenSearch console.
 
 ## Running the Guidance
 ### Manually trigger the TPCS DS benchmark
