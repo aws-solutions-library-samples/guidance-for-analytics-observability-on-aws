@@ -8,8 +8,8 @@
 3. [Deployment Steps](#deployment-steps)
 4. [Deployment Validation](#deployment-validation)
 5. [Running the Guidance](#running-the-guidance)
-6. [Next Steps](#next-steps-required)
-7. [Cleanup](#cleanup-required)
+6. [Next Steps](#next-steps)
+7. [Cleanup](#cleanup)
 
 ## Overview
 Introducing AWS Spark Observability - an open source observability solution for [Apache Spark](https://spark.apache.org/)
