@@ -417,7 +417,15 @@ You may extend the solution by deploying the connector to other Spark based appl
 
 ## Cleanup
 
-To clean up the stack, run ```cdk destroy```. You may need to manually delete the OpenSearch domain. This can be done through the CLI using ```aws oppensearch delete-domain``` or the AWS console
+To clean up the guidance deployment stack, run the following command:
+```bash
+cdk destroy
+```
+You may need to manually delete the OpenSearch domain. This can be done through the CLI using 
+```bash
+aws oppensearch delete-domain
+```
+command or the AWS console.
 
 
 ## FAQ, known issues, additional considerations, and limitations
