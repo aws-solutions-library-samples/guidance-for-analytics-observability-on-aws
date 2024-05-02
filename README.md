@@ -52,15 +52,15 @@ _We recommend creating a [Budget](https://docs.aws.amazon.com/cost-management/l
 
 ### Sample Cost Table
 
-The following table provides a sample cost breakdown for deploying this Guidance with the default parameters in the US East (N. Virginia) Region for one month. This data comes form AWS Pricing Calculator available [here](https://calculator.aws/#/estimate?id=5701221ae9e4a2a97dca3a0c4c55c5d6fc2c775e)
+The following table provides a sample cost breakdown for deploying this Guidance with the default parameters in the US East (N. Virginia) Region for one month. This data comes form AWS Pricing Calculator available [here](https://calculator.aws/#/estimate?id=939d66a874ae98464e5b6aee27e88d570a1f851c)
 
 | AWS service  | Dimensions | Cost [USD] |
 | ----------- | ------------ | ------------ |
 | Amazon OpenSearch | 730 hours per month  | $ 220.87 per month |
-| Amazon OpenSearch Logs Pipeline | 3 OCUs  | $ 525.60 per month |
+| Amazon OpenSearch Logs Pipeline | 2 OCUs  | $ 350.40 per month |
 | Amazon OpenSearch Metrics Pipeline | 1 OCUs  | $ 175.20 per month |
 | Amazon EC2 (Optional for reverse proxy) | 730 hours per month | $ 7.59 |
-| **Total cost per month** | | **$ 929.26** |
+| **Total cost per month** | | **$ 754.06** |
 
 ## Prerequisites
 
