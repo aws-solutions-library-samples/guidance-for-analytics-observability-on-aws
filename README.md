@@ -48,12 +48,11 @@ _You are responsible for the cost of the AWS services used while running this Gu
 
 The reverse proxy running on EC2 is totally optional, and may be skipped during the deployment. You may deploy it only if you currently have no mechanism to securely expose the dashboards to clients located outside the VPC.
 
-Suggest you keep this boilerplate text:
 _We recommend creating a [Budget](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) through [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to help manage costs. Prices are subject to change. For full details, refer to the pricing webpage for each AWS service used in this Guidance._
 
-### Sample Cost Table ( required )
+### Sample Cost Table
 
-The following table provides a sample cost breakdown for deploying this Guidance with the default parameters in the US East (N. Virginia) Region for one month.
+The following table provides a sample cost breakdown for deploying this Guidance with the default parameters in the US East (N. Virginia) Region for one month. This data comes form AWS Pricing Calculator available [here](https://calculator.aws/#/estimate?id=5701221ae9e4a2a97dca3a0c4c55c5d6fc2c775e)
 
 | AWS service  | Dimensions | Cost [USD] |
 | ----------- | ------------ | ------------ |
