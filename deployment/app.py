@@ -28,8 +28,9 @@ if app.node.try_get_context('Stack') == 'backend':
                            env=cdk.Environment(
                                account=account,
                                region=region,
-                           )
+                           ),
                            # If you don't specify 'env', the VPC will be created with only 2 AZs instead dof 3 AZs.
+                           description="Guidance for Analytics Observability on AWS (SO9454)"
                            )
 
 elif app.node.try_get_context('Stack') == 'ingestor':
@@ -38,7 +39,9 @@ elif app.node.try_get_context('Stack') == 'ingestor':
                   env=cdk.Environment(
                       account=account,
                       region=region,
-                  ))
+                  ),
+                  description="Guidance for Analytics Observability on AWS (SO9454)"
+                  )
 
 elif app.node.try_get_context('Stack') == 'vpc':
 
@@ -46,7 +49,9 @@ elif app.node.try_get_context('Stack') == 'vpc':
              env=cdk.Environment(
                  account=account,
                  region=region,
-             ))
+             ),
+             description="Guidance for Analytics Observability on AWS (SO9454)"
+             )
 
 elif app.node.try_get_context('Stack') == 'example':
 
@@ -54,7 +59,9 @@ elif app.node.try_get_context('Stack') == 'example':
                        env=cdk.Environment(
                            account=account,
                            region=region,
-                       ))
+                       ),
+                       description="Guidance for Analytics Observability on AWS (SO9454)"
+                       )
 else:
     raise Exception("Stack parameter must be 'backend', 'vpc', 'ingestor' or 'example'")
 
