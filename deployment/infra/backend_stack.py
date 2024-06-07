@@ -238,3 +238,7 @@ class BackendStack(Stack):
             {"id": "AwsSolutions-IAM4", "reason": "Role configured by the Log Retention feature from Custom Resource Provider Framework. Not configurable."},
             {"id": "AwsSolutions-IAM5", "reason": "Role configured by the Log Retention feature from Custom Resource Provider Framework. Not configurable."},
         ], True)
+
+        NagSuppressions.add_resource_suppressions_by_path(stack=self, path='/BackendStack/Vpc/Resource', suppressions=[
+            {"id": "AwsSolutions-VPC7", "reason": "The default VPC doesn't have VPC flow log enabled, it is provided only for testing"},
+        ])
