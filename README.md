@@ -86,9 +86,9 @@ The solution guidance includes multiple layers some of which are optional. The r
    ```bash
    git clone https://github.com/aws-solutions-library-samples/guidance-for-analytics-observability-on-aws.git
    ```
-3. Go into the `infra` folder
+3. Go into the `deployment` folder
   ```bash
-  cd infra
+  cd deployment
   ``` 
 4. Create Python environment:
  ```bash 

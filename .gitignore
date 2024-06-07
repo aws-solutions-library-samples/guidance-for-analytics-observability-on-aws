@@ -25,3 +25,5 @@ deployment/dev/spark-observability-collector-assembly*.jar
 source/collector/project/target
 source/collector/target
 source/collector/project/project
+
+deployment/infra/resources/lambda/layer
