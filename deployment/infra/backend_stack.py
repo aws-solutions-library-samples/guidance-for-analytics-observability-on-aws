@@ -118,7 +118,8 @@ class BackendStack(Stack):
         # )
 
         # We use Cfn resource to get an object and add dependency on the custom resource
-        from_cr_ingress = CfnSecurityGroupIngress(self, 'CrToDomainIngress', 
+        from_cr_ingress = CfnSecurityGroupIngress(self, 'CrToDomainIngress',
+                                                  group_id=prereq.domain_security_group.security_group_id,
                                                   ip_protocol='TCP',
                                                   to_port=443,
                                                   source_security_group_id=bootstrap_cr_helpers.security_group.security_group_id
