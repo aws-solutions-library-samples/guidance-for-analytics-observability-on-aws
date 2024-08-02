@@ -1,6 +1,5 @@
 package com.amazonaws.sparkobservability
 
-import com.amazonaws.sparkobservability.SparkUtility
 import org.apache.spark.api.plugin.{DriverPlugin, ExecutorPlugin, PluginContext, SparkPlugin}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.execution.ui.SQLAppStatusListener
@@ -24,9 +23,11 @@ class ObservabilityPlugin extends SparkPlugin {
     var sqlFunction:  () => Option[SQLAppStatusListener] = null
 
     override def init(sc: SparkContext, pluginContext: PluginContext): util.Map[String, String] = {
-      this.sqlFunction = SparkUtility.getSqlListener(sc)
+      // this.sqlFunction = ObservabilitySql.install(sc)
+      this.sqlFunction = Utils.getSqlListener(sc)
       this.sc = sc
       this.sc.addSparkListener(new CustomMetricsListener(sc, sqlFunction))
       Map[String, String]().asJava    }
   }
 }
+
