@@ -3,7 +3,10 @@
 
 package com.amazonaws.sparkobservability
 
+import org.apache.spark.SparkContext
 import org.apache.spark.scheduler._
+import org.apache.spark.sql.execution.ui.{SQLAppStatusListener, SQLAppStatusStore, SQLExecutionUIData, SparkPlanGraphNode}
+import org.apache.spark.util.kvstore.KVStore
 import org.slf4j.LoggerFactory
 
 import java.time.Instant
@@ -13,7 +16,7 @@ import org.joda.time.DateTime
 /**
  * A custom Spark listener to collect metrics and send to an observability client.
  */
-class CustomMetricsListener extends SparkListener {
+class CustomMetricsListener(context: SparkContext, sqlListener: () => Option[SQLAppStatusListener]) extends SparkListener {
 
   /**
    * The logger to log debug information.
@@ -35,10 +38,13 @@ class CustomMetricsListener extends SparkListener {
    */
   private val taskMetricsBuffer = ListBuffer[CustomLightTaskMetrics]()
 
+  private var maxSqlOffset: Int = 0
+
   /**
    * Listen to application end and then flush any pending metrics to the observability client.
    */
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    reportNewSqlMetrics()
     println("shutdown hook! Flushing observability client...")
     client.flushEvents()
   }
@@ -98,9 +104,7 @@ class CustomMetricsListener extends SparkListener {
       metrics.stageId,
       metrics.taskId,
       metrics.inputBytesRead,
-      metrics.shuffleBytesRead,
-      DateTime.now().getMillis(),
-    )
+      metrics.shuffleBytesRead)
   }
 
   /**
@@ -128,9 +132,7 @@ class CustomMetricsListener extends SparkListener {
       shuffleRecordsRead = taskEnded.taskMetrics.shuffleReadMetrics.recordsRead,
       shuffleBytesRead = taskEnded.taskMetrics.shuffleReadMetrics.totalBytesRead,
       shuffleRecordsWritten = taskEnded.taskMetrics.shuffleWriteMetrics.recordsWritten,
-      shuffleBytesWritten = taskEnded.taskMetrics.shuffleWriteMetrics.bytesWritten,
-      DateTime.now().getMillis(),
-    )
+      shuffleBytesWritten = taskEnded.taskMetrics.shuffleWriteMetrics.bytesWritten)
   }
 
   /**
@@ -182,8 +184,92 @@ class CustomMetricsListener extends SparkListener {
       maxInputRelDistance,
       maxInputBytesRead,
       maxShuffleRelDistance,
-      maxShuffleBytesRead,
-      DateTime.now().getMillis(),
+      maxShuffleBytesRead)
+  }
+
+
+  private def reportNewSqlMetrics(): Unit = {
+    val sqlStore = getSqlStore()
+    val executions = getExecutions(sqlStore)
+    val allMetrics = getAllMetrics(sqlStore, executions)
+
+    processNodes(sqlStore, executions, allMetrics)
+    processEdges(sqlStore, executions)
+    saveExecutions(executions)
+  }
+
+  private def getSqlStore(): SQLAppStatusStore = {
+    val listener = this.sqlListener()
+    val statusStore = getStatusStore()
+    val kvStore = getKVStore(statusStore)
+    new SQLAppStatusStore(kvStore, listener)
+  }
+
+  private def getStatusStore(): Any = {
+    context.getClass.getMethod("statusStore").invoke(context)
+  }
+
+  private def getKVStore(statusStore: Any): KVStore = {
+    val storeField = statusStore.getClass.getDeclaredField("store")
+    storeField.setAccessible(true)
+    storeField.get(statusStore).asInstanceOf[KVStore]
+  }
+
+  private def getExecutions(sqlStore: SQLAppStatusStore): Seq[CustomSQLMetrics] = {
+    val executionList = sqlStore.executionsList(0, 100000)
+    executionList.map(execution => convertToCaseClass(execution))
+  }
+
+  private def getAllMetrics(sqlStore: SQLAppStatusStore, executions: Seq[CustomSQLMetrics]): Map[Long, String] = {
+    executions.flatMap(x => sqlStore.executionMetrics(x.executionId)).toMap
+  }
+
+  private def processNodes(sqlStore: SQLAppStatusStore, executions: Seq[CustomSQLMetrics], allMetrics: Map[Long, String]): Unit = {
+    executions.flatMap(execution =>
+      sqlStore.planGraph(execution.executionId).allNodes.map(node =>
+        createPhysicalOpNode(execution, node, allMetrics)
+      )
+    ).foreach(node => client.add(node))
+  }
+
+  private def createPhysicalOpNode(execution: CustomSQLMetrics, node: SparkPlanGraphNode, allMetrics: Map[Long, String]): PhysicalOpNode = {
+    PhysicalOpNode(
+      context.applicationId,
+      context.appName,
+      node.id,
+      execution.executionId,
+      node.name,
+      node.desc,
+      node.metrics.map(metric =>
+        SparkPlanMetric(metric.name, metric.metricType, allMetrics.getOrElse(metric.accumulatorId, "default"))
+      ).filter(_.value != "default")
+        .map(metric => metric.name -> metric.value).toMap
     )
   }
+
+  private def processEdges(sqlStore: SQLAppStatusStore, executions: Seq[CustomSQLMetrics]): Unit = {
+    executions.flatMap(execution =>
+      sqlStore.planGraph(execution.executionId).edges.map(edge =>
+        PhysicalOpEdge(context.appName, context.applicationId, execution.executionId, edge.fromId, edge.toId)
+      )
+    ).foreach(edge => client.add(edge))
+  }
+
+  private def saveExecutions(executions: Seq[CustomSQLMetrics]): Unit = {
+    executions.foreach(execution => client.add(execution))
+  }
+
+  def convertToCaseClass(sqlExecutionUIData: SQLExecutionUIData): CustomSQLMetrics = {
+    val metrics = sqlExecutionUIData.metrics.map {
+      planMetric =>
+        val name = planMetric.name
+        val metricType = planMetric.metricType
+        val accumulatorId = planMetric.accumulatorId
+        val value = sqlExecutionUIData.metricValues.getOrElse(accumulatorId, "default")
+        SparkPlanMetric(name, metricType, value)
+    }
+    val metricsMap = metrics.filter(x => x.value != "default").map { x => x.name -> x.value }.toMap
+    CustomSQLMetrics(context.appName, context.applicationId, sqlExecutionUIData.executionId, sqlExecutionUIData.description, sqlExecutionUIData.details, sqlExecutionUIData.physicalPlanDescription, metricsMap, sqlExecutionUIData.completionTime, sqlExecutionUIData.stages.toList, sqlExecutionUIData.jobs.map(x => x._1).toList, sqlExecutionUIData.submissionTime)
+  }
+
 }
