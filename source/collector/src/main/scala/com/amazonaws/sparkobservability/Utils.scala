@@ -7,7 +7,8 @@ import org.apache.logging.log4j.core.LogEvent
 import org.apache.logging.log4j.core.impl.Log4jLogEvent
 import org.apache.logging.log4j.util.SortedArrayStringMap
 import org.apache.spark.SparkEnv
-
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.execution.ui.SQLAppStatusListener
 import scala.util.Try
 
 /**
@@ -111,4 +112,24 @@ object Utils {
   def getTimeThreshold(): Int = {
     Try(SparkEnv.get.conf.get("spark.metrics.timeThreshold")).getOrElse("10").toInt
   }
+
+  def getSqlListener(sc: SparkContext): () => Option[SQLAppStatusListener] = {
+    () => {
+      Try {
+        val statusStoreField = sc.getClass.getDeclaredField("_statusStore")
+        statusStoreField.setAccessible(true)
+        val statusStore = statusStoreField.get(sc)
+
+        val listenerField = statusStore.getClass.getDeclaredField("listener")
+        listenerField.setAccessible(true)
+        val listener = listenerField.get(statusStore)
+
+        listener match {
+          case l: SQLAppStatusListener => Some(l)
+          case _ => None
+        }
+      }.toOption.flatten
+    }
+  }
+
 }
