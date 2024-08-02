@@ -40,6 +40,7 @@ logs_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spar
 stage_agg_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-stage-agg-metrics.json"
 task_template_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/templates/spark-task-metrics.json"
 data_skew_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/dashboards/data-skew.ndjson"
+spark_plan_path = f"{os.environ['LAMBDA_TASK_ROOT']}/resources/dashboards/spark-plan.ndjson"
 
 
 awsauth = AWS4Auth(credentials.access_key,
@@ -229,6 +230,7 @@ def on_create(event: json):
     index_template('spark_stage_agg_metrics', 'CREATE', resource_path=stage_agg_template_path)
 
     # create the opensearch dashboards saved objects
+    # create skew dashboard :
     logger.info(f'Creating saved objects at {data_skew_path}')
     response = os_resource(action='POST_FILE', os_path="_dashboards/api/saved_objects/_import?overwrite=true", resource_path=data_skew_path, headers={'osd-xsrf': 'true'})
     if not response.ok:
@@ -239,7 +241,20 @@ def on_create(event: json):
             del r['meta']
         if 'overwrite' in r:
             del r['overwrite']
-    return {    
+
+    #create plan dashboard:
+
+    response = os_resource(action='POST_FILE', os_path="_dashboards/api/saved_objects/_import?overwrite=true", resource_path=spark_plan_path, headers={'osd-xsrf': 'true'})
+    if not response.ok:
+        raise Exception(f'Error {response.status_code} in saved objects creation: {response.text}')
+    resources = response.json()['successResults']
+    for r in resources:
+        if 'meta' in r:
+            del r['meta']
+        if 'overwrite' in r:
+            del r['overwrite']
+
+    return {
         'Data': {
             'Resources': resources
         }
