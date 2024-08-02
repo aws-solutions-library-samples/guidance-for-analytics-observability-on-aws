@@ -113,6 +113,12 @@ object Utils {
     Try(SparkEnv.get.conf.get("spark.metrics.timeThreshold")).getOrElse("10").toInt
   }
 
+  /**
+   *
+   * @param spark context
+   * @return SqlListener object used to instantiate spark listener
+   */
+
   def getSqlListener(sc: SparkContext): () => Option[SQLAppStatusListener] = {
     () => {
       Try {
