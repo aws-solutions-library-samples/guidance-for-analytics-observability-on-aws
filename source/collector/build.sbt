@@ -10,6 +10,7 @@ scalaVersion := "2.12.17"
 libraryDependencies ++= {
   Seq(
     "org.apache.spark" %% "spark-core" % "3.3.0" % "provided",
+    "org.apache.spark" %% "spark-sql" % "3.3.0" % "provided",
     "org.apache.logging.log4j" % "log4j-core" % "2.17.2",
     "software.amazon.awssdk" % "regions" % "2.20.38",
     "software.amazon.awssdk" % "apache-client" % "2.20.38",
