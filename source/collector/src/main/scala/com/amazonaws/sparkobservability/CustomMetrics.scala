@@ -44,7 +44,7 @@ case class CustomTaskMetrics(
                               shuffleRecordsRead: Double,
                               shuffleBytesRead: Double,
                               shuffleRecordsWritten: Double,
-                              shuffleBytesWritten: Double
+                              shuffleBytesWritten: Double,
                             ) extends CustomMetrics(appName, appId, jobId, metricsType="taskMetrics")
 
 /**
@@ -57,7 +57,7 @@ case class CustomLightTaskMetrics(
                                    stageId: Integer,
                                    taskId: String,
                                    inputBytesRead: Double,
-                                   shuffleBytesRead: Double
+                                   shuffleBytesRead: Double,
                                  ) extends CustomMetrics(appName, appId, jobId, metricsType="lightTaskMetrics")
 
 /**
@@ -71,7 +71,7 @@ case class CustomStageAggMetrics(
                                   inputBytesReadSkewness: Double,
                                   maxInputBytesRead: Double,
                                   shuffleBytesReadSkewness: Double,
-                                  maxShuffleBytesRead: Double
+                                  maxShuffleBytesRead: Double,
                                 ) extends CustomMetrics(appName, appId, jobId, metricsType="stageAggMetrics")
 
 case class CustomSQLMetrics(
