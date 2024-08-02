@@ -9,6 +9,9 @@ pipeline:
   route:
     - task-metrics: '/metricsType == "taskMetrics"'
     - stage-agg-metrics: '/metricsType == "stageAggMetrics"'
+    - sql-metrics: '/metricsType == "sparkSqlMetrics"'
+    - physical-node-metrics: '/metricsType == "sparkOpNode"'
+    - physical-edge: '/metricsType == "sparkOpEdge"'
   sink:
     - opensearch:
         hosts: [ "https://{domain_url}" ]
@@ -26,3 +29,27 @@ pipeline:
         aws_sigv4: true
         routes:
           - task-metrics
+    - opensearch:
+        hosts: [ "https://{domain_url}" ]
+        index: "spark-node-edges"
+        aws_sts_role_arn: "{role_arn}"
+        aws_region: "{region}"
+        aws_sigv4: true
+        routes:
+          - physical-edge
+    - opensearch:
+        hosts: [ "https://{domain_url}" ]
+        index: "spark-sql-metrics"
+        aws_sts_role_arn: "{role_arn}"
+        aws_region: "{region}"
+        aws_sigv4: true
+        routes:
+          - sql-metrics
+    - opensearch:
+        hosts: [ "https://{domain_url}" ]
+        index: "spark-node-metrics"
+        aws_sts_role_arn: "{role_arn}"
+        aws_region: "{region}"
+        aws_sigv4: true
+        routes:
+          - physical-node-metrics
